@@ -5,6 +5,7 @@ import javafx.collections.FXCollections;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
@@ -24,7 +25,8 @@ import org.lostcityinterfaceeditor.baseCode.Model;
 import org.lostcityinterfaceeditor.baseCode.Pix3D;
 import org.lostcityinterfaceeditor.fileUtils.InterfaceFileParser;
 import org.lostcityinterfaceeditor.fileUtils.InterfaceFileWriter;
-import org.lostcityinterfaceeditor.helpers.CustomFontHelper;
+import org.lostcityinterfaceeditor.helpers.FontHelper;
+import org.lostcityinterfaceeditor.helpers.LayoutHelper;
 import org.lostcityinterfaceeditor.loaders.AssetLoader;
 
 import java.io.File;
@@ -39,24 +41,7 @@ import java.util.function.Consumer;
 public class LostCityInterfaceEditor extends Application {
 
     private Map<String, Double> originalViewOrderMap = new HashMap<>();
-    private ImageView chatbackImageView;
-    private ImageView mapbackImageView;
-    private ImageView backbase1ImageView;
-    private ImageView backbase2ImageView;
-    private ImageView backhmid1ImageView;
-    private ImageView backleft1ImageView;
-    private ImageView backleft2ImageView;
-    private ImageView backright1ImageView;
-    private ImageView backright2ImageView;
-    private ImageView backtop1ImageView;
-    private ImageView backtop2ImageView;
-    private ImageView backvmid1ImageView;
-    private ImageView backvmid2ImageView;
-    private ImageView backvmid3ImageView;
-    private ImageView backhmid2ImageView;
     private ImageView compassImageView;
-    private ImageView invbackImageView;
-    private Pane areaInvback;
     private Pane areaMinimap;
     private Pane areaCompass;
     private Pane areaBackleft1;
@@ -98,6 +83,7 @@ public class LostCityInterfaceEditor extends Application {
     private Map<String, TextRenderInfo> textRenderInfoMap = new HashMap<>();
     private AssetLoader assetLoader;
     private ScrollPane propertiesScrollPane;
+    private LayoutHelper activeLayout = LayoutHelper.Standard;
 
     public static void main(String[] args) {
         launch();
@@ -111,7 +97,9 @@ public class LostCityInterfaceEditor extends Application {
                 System.err.println("No server directory selected. Exiting.");
                 return;
             }
-
+            if (!chooseLayoutVersion()) {
+                System.err.println("No layout version selected. Using standard.");
+            }
             assetLoader = new AssetLoader(serverDirectoryPath);
             assetLoader.loadAll();
             initializeUIComponents();
@@ -124,6 +112,51 @@ public class LostCityInterfaceEditor extends Application {
             populateComponentTreeView();
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private boolean chooseLayoutVersion() {
+        List<String> options = Arrays.asList("Standard (Modern)", "Legacy (225)");
+        ChoiceDialog<String> dialog = new ChoiceDialog<>("Standard up to 377", options);
+        dialog.setTitle("Select Layout Version");
+        dialog.setHeaderText("UI Version Selection");
+        dialog.setContentText("Choose the layout version to use:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            if (result.get().equals("Legacy (225)")) {
+                activeLayout = LayoutHelper.Legacy;
+            } else {
+                activeLayout = LayoutHelper.Standard;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private Pane setupPane(String key) {
+        Rectangle2D rect = activeLayout.get(key);
+        Pane p = new Pane();
+        p.setLayoutX(rect.getMinX());
+        p.setLayoutY(rect.getMinY());
+        if (rect.getWidth() > 0) p.setPrefSize(rect.getWidth(), rect.getHeight());
+        return p;
+    }
+
+    private Pane setupPaneWithSprite(String key, String spriteName, int index) {
+        Pane p = setupPane(key);
+        ImageView iv = new ImageView(assetLoader.getSpriteManager().getSprite(spriteName, index));
+        p.getChildren().add(iv);
+        return p;
+    }
+
+    private void addIconsToPane(Pane parent, String iconKey, int startIdx) {
+        List<Point2D> points = activeLayout.getIcons(iconKey);
+        for (int i = 0; i < points.size(); i++) {
+            ImageView iv = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", startIdx + i));
+            iv.setLayoutX(points.get(i).getX());
+            iv.setLayoutY(points.get(i).getY());
+            parent.getChildren().add(iv);
         }
     }
 
@@ -185,7 +218,7 @@ public class LostCityInterfaceEditor extends Application {
         if ("text".equals(type)) {
             addSectionHeader(propertiesSidebarVBox, "Text Properties");
             addEditableProperty(propertiesSidebarVBox, "Text", component.getText(), value -> component.setText(value));
-            addDropdownProperty(propertiesSidebarVBox, "Font", component.getFont(), List.of("p11", "p12", "b12", "q8"), component::setFont);
+            addDropdownProperty(propertiesSidebarVBox, "Font", component.getFont(), assetLoader.getFontManager().getLoadedFontNames(), component::setFont);
             addBooleanProperty(propertiesSidebarVBox, "Center", component.isCenter(), value -> component.setCenter(value));
             addBooleanProperty(propertiesSidebarVBox, "Shadowed", component.isShadowed(), value -> component.setShadowed(value));
             addColorProperty(propertiesSidebarVBox, "Colour", component.getColour(), value -> component.setColour(value));
@@ -239,7 +272,7 @@ public class LostCityInterfaceEditor extends Application {
             }
         } else if ("invtext".equals(type)) {
             addSectionHeader(propertiesSidebarVBox, "Inventory Text Properties");
-            addDropdownProperty(propertiesSidebarVBox, "Font", component.getFont(), List.of("p11", "p12", "b12", "q8"), component::setFont);
+            addDropdownProperty(propertiesSidebarVBox, "Font", component.getFont(), assetLoader.getFontManager().getLoadedFontNames(), component::setFont);
             addBooleanProperty(propertiesSidebarVBox, "Center", component.isCenter(), value -> component.setCenter(value));
             addBooleanProperty(propertiesSidebarVBox, "Shadowed", component.isShadowed(), value -> component.setShadowed(value));
             addColorProperty(propertiesSidebarVBox, "Colour", component.getColour(), value -> component.setColour(value));
@@ -576,7 +609,11 @@ public class LostCityInterfaceEditor extends Application {
             case "text":
                 newComponent.setText("New Text");
                 newComponent.setColour("0x000000");
-                newComponent.setFont("p12");
+                List<String> availableFonts = assetLoader.getFontManager().getLoadedFontNames();
+                if (!availableFonts.isEmpty()) {
+                    String defaultFont = availableFonts.contains("p12_full") ? "p12_full" : availableFonts.get(0);
+                    newComponent.setFont(defaultFont);
+                }
                 break;
             case "rect":
                 newComponent.setColour("0x000000");
@@ -1501,7 +1538,7 @@ public class LostCityInterfaceEditor extends Application {
             }
             else if ("text".equals(component.getType())) {
                 try {
-                    CustomFontHelper font = assetLoader.getFontManager().getFont(component.getFont());
+                    FontHelper font = assetLoader.getFontManager().getFont(component.getFont());
                     if (font == null) {
                         System.err.println("Error: Font not found: " + component.getFont());
                         return;
@@ -1994,13 +2031,20 @@ public class LostCityInterfaceEditor extends Application {
     private void showTooltip(String text) {
         if (text == null || text.isEmpty()) return;
         tooltipCanvas.getGraphicsContext2D().clearRect(0, 0, tooltipCanvas.getWidth(), tooltipCanvas.getHeight());
-        double width = Math.max(100,  assetLoader.getFontManager().getFont("b12").getTextWidth(text) + 10);
+        String fontName = "b12_full";
+        FontHelper font = assetLoader.getFontManager().getFont(fontName);
+
+        if (font == null) {
+            fontName = "b12";
+            font = assetLoader.getFontManager().getFont(fontName);
+        }
+        double width = Math.max(100,  font.getTextWidth(text) + 10);
         if (width > tooltipCanvas.getWidth()) {
             tooltipCanvas.setWidth(width);
         }
         assetLoader.getFontManager().drawTaggableText(
                 tooltipCanvas.getGraphicsContext2D(),
-                "b12",
+                fontName,
                 text,
                 12.0, 26.0,
                 16777215,
@@ -2016,15 +2060,18 @@ public class LostCityInterfaceEditor extends Application {
 
     private void initializeUIComponents() {
         try {
+            double totalW = activeLayout.getFrameWidth();
+            double totalH = activeLayout.getFrameHeight();
+
             root = new AnchorPane();
-            backgroundCanvas = new Canvas(789, 532);
+            backgroundCanvas = new Canvas(totalW, totalH);
             gc = backgroundCanvas.getGraphicsContext2D();
             gc.setFill(Color.GRAY);
-            gc.fillRect(0, 0, 789, 532);
+            gc.fillRect(0, 0, totalW, totalH);
             root.getChildren().add(backgroundCanvas);
             backgroundCanvas.toBack();
             root.setBackground(Background.EMPTY);
-            scene = new Scene(root, 1289, 532);
+            scene = new Scene(root, totalW + 500, totalH);
 
             tooltipPane = new Pane();
             tooltipPane.setLayoutX(0);
@@ -2036,195 +2083,51 @@ public class LostCityInterfaceEditor extends Application {
             tooltipPane.setViewOrder(-100);
             root.getChildren().add(tooltipPane);
 
-            areaMapback = new Pane();
-            areaMapback.setPrefSize(168, 160);
-            areaMapback.setLayoutX(561);
-            areaMapback.setLayoutY(5);
-            mapbackImageView = new ImageView(assetLoader.getSpriteManager().getSprite("mapback", 0));
-            areaMapback.getChildren().add(mapbackImageView);
+            areaViewport = setupPane("viewport");
 
-            areaChatback = new Pane();
-            areaChatback.setPrefSize(479, 96);
-            areaChatback.setLayoutX(22);
-            areaChatback.setLayoutY(375);
-            chatbackImageView = new ImageView(assetLoader.getSpriteManager().getSprite("chatback", 0));
-            areaChatback.getChildren().add(chatbackImageView);
+            areaChatback = setupPaneWithSprite("chatback", "chatback", 0);
+            areaMapback  = setupPaneWithSprite("mapback", "mapback", 0);
+            areaSidebar  = setupPaneWithSprite("sidebar", "invback", 0);
 
-            areaViewport = new Pane();
-            areaViewport.setPrefSize(512, 334);
-            areaViewport.setLayoutX(8);
-            areaViewport.setLayoutY(11);
+            areaBackbase1 = setupPaneWithSprite("backbase1", "backbase1", 0);
+            areaBackhmid1 = setupPaneWithSprite("backhmid1", "backhmid1", 0);
+            addIconsToPane(areaBackhmid1, "hmidIcons", 0);
+            areaBackbase2 = setupPaneWithSprite("backbase2", "backbase2", 0);
+            addIconsToPane(areaBackbase2, "baseIcons", 7);
 
-            areaSidebar = new Pane();
-            areaSidebar.setPrefSize(190, 261);
-            areaSidebar.setLayoutX(562);
-            areaSidebar.setLayoutY(231);
+            areaBackleft1  = setupPaneWithSprite("backleft1", "backleft1", 0);
+            areaBackleft2  = setupPaneWithSprite("backleft2", "backleft2", 0);
 
-            areaBackbase1 = new Pane();
-            areaBackbase1.setPrefSize(501, 61);
-            areaBackbase1.setLayoutX(0);
-            areaBackbase1.setLayoutY(471);
-            backbase1ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backbase1", 0));
-            areaBackbase1.getChildren().add(backbase1ImageView);
+            areaBackright1 = setupPaneWithSprite("backright1", "backright1", 0);
+            areaBackright2 = setupPaneWithSprite("backright2", "backright2", 0);
 
-            areaBackbase2 = new Pane();
-            areaBackbase2.setPrefSize(288, 40);
-            areaBackbase2.setLayoutX(501);
-            areaBackbase2.setLayoutY(492);
-            backbase2ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backbase2", 0));
-            ImageView imageSideiconView7 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 7));
-            imageSideiconView7.setLayoutX(80);
-            imageSideiconView7.setLayoutY(2);
+            areaBackvmid1  = setupPaneWithSprite("backvmid1", "backvmid1", 0);
+            areaBackvmid2  = setupPaneWithSprite("backvmid2", "backvmid2", 0);
+            areaBackvmid3  = setupPaneWithSprite("backvmid3", "backvmid3", 0);
+            areaBackhmid2  = setupPaneWithSprite("backhmid2", "backhmid2", 0);
 
-            ImageView imageSideiconView8 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 8));
-            imageSideiconView8.setLayoutX(107);
-            imageSideiconView8.setLayoutY(3);
+            areaBacktop1 = setupPaneWithSprite("backtop1", "backtop1", 0);
+            areaBacktop2 = setupPaneWithSprite("backtop2", "backtop2", 0);
 
-            ImageView imageSideiconView9 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 9));
-            imageSideiconView9.setLayoutX(142);
-            imageSideiconView9.setLayoutY(4);
-
-            ImageView imageSideiconView10 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 10));
-            imageSideiconView10.setLayoutX(179);
-            imageSideiconView10.setLayoutY(2);
-
-            ImageView imageSideiconView11 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 11));
-            imageSideiconView11.setLayoutX(206);
-            imageSideiconView11.setLayoutY(2);
-
-            ImageView imageSideiconView12 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 12));
-            imageSideiconView12.setLayoutX(230);
-            imageSideiconView12.setLayoutY(2);
-            areaBackbase2.getChildren().addAll(backbase2ImageView, imageSideiconView7,
-                    imageSideiconView8, imageSideiconView9, imageSideiconView10, imageSideiconView11,
-                    imageSideiconView12);
-
-            areaBackhmid1 = new Pane();
-            areaBackhmid1.setPrefSize(269, 66);
-            areaBackhmid1.setLayoutX(520);
-            areaBackhmid1.setLayoutY(165);
-            backhmid1ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backhmid1", 0));
-            ImageView imageSideiconView0 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 0));
-            imageSideiconView0.setLayoutX(35);
-            imageSideiconView0.setLayoutY(34);
-
-            ImageView imageSideiconView1 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 1));
-            imageSideiconView1.setLayoutX(59);
-            imageSideiconView1.setLayoutY(32);
-
-            ImageView imageSideiconView2 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 2));
-            imageSideiconView2.setLayoutX(86);
-            imageSideiconView2.setLayoutY(32);
-
-            ImageView imageSideiconView3 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 3));
-            imageSideiconView3.setLayoutX(121);
-            imageSideiconView3.setLayoutY(33);
-
-            ImageView imageSideiconView4 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 4));
-            imageSideiconView4.setLayoutX(157);
-            imageSideiconView4.setLayoutY(34);
-
-            ImageView imageSideiconView5 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 5));
-            imageSideiconView5.setLayoutX(185);
-            imageSideiconView5.setLayoutY(32);
-
-            ImageView imageSideiconView6 = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", 6));
-            imageSideiconView6.setLayoutX(212);
-            imageSideiconView6.setLayoutY(34);
-            areaBackhmid1.getChildren().addAll(backhmid1ImageView, imageSideiconView0,
-                    imageSideiconView1, imageSideiconView2, imageSideiconView3, imageSideiconView4,
-                    imageSideiconView5, imageSideiconView6);
-
-            areaBackleft1 = new Pane();
-            areaBackleft1.setLayoutX(0);
-            areaBackleft1.setLayoutY(11);
-            backleft1ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backleft1", 0));
-            areaBackleft1.getChildren().add(backleft1ImageView);
-
-            areaBackleft2 = new Pane();
-            areaBackleft2.setLayoutX(0);
-            areaBackleft2.setLayoutY(375);
-            backleft2ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backleft2", 0));
-            areaBackleft2.getChildren().add(backleft2ImageView);
-
-            areaBackright1 = new Pane();
-            areaBackright1.setLayoutX(729);
-            areaBackright1.setLayoutY(5);
-            backright1ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backright1", 0));
-            areaBackright1.getChildren().add(backright1ImageView);
-
-            areaBackright2 = new Pane();
-            areaBackright2.setLayoutX(752);
-            areaBackright2.setLayoutY(231);
-            backright2ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backright2", 0));
-            areaBackright2.getChildren().add(backright2ImageView);
-
-            areaBacktop1 = new Pane();
-            areaBacktop1.setLayoutX(0);
-            areaBacktop1.setLayoutY(0);
-            backtop1ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backtop1", 0));
-            areaBacktop1.getChildren().add(backtop1ImageView);
-
-            areaBacktop2 = new Pane();
-            areaBacktop2.setLayoutX(561);
-            areaBacktop2.setLayoutY(0);
-            backtop2ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backtop2", 0));
-            areaBacktop2.getChildren().add(backtop2ImageView);
-
-            areaBackvmid1 = new Pane();
-            areaBackvmid1.setLayoutX(520);
-            areaBackvmid1.setLayoutY(11);
-            backvmid1ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backvmid1", 0));
-            areaBackvmid1.getChildren().add(backvmid1ImageView);
-
-            areaBackvmid2 = new Pane();
-            areaBackvmid2.setLayoutX(520);
-            areaBackvmid2.setLayoutY(231);
-            backvmid2ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backvmid2", 0));
-            areaBackvmid2.getChildren().add(backvmid2ImageView);
-
-            areaBackvmid3 = new Pane();
-            areaBackvmid3.setLayoutX(501);
-            areaBackvmid3.setLayoutY(375);
-            backvmid3ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backvmid3", 0));
-            areaBackvmid3.getChildren().add(backvmid3ImageView);
-
-            areaBackhmid2 = new Pane();
-            areaBackhmid2.setLayoutX(0);
-            areaBackhmid2.setLayoutY(345);
-            backhmid2ImageView = new ImageView(assetLoader.getSpriteManager().getSprite("backhmid2", 0));
-            areaBackhmid2.getChildren().add(backhmid2ImageView);
-
-            areaInvback = new Pane();
-            areaInvback.setLayoutX(0);
-            areaInvback.setLayoutY(0);
-            invbackImageView = new ImageView(assetLoader.getSpriteManager().getSprite("invback", 0));
-            areaSidebar.getChildren().add(invbackImageView);
-
-            areaCompass = new Pane();
+            areaCompass = setupPane("mapback");
             compassImageView = new ImageView(assetLoader.getSpriteManager().getSprite("compass", 0));
             compassImageView.setLayoutX(-8);
             compassImageView.setLayoutY(-8);
-            areaCompass.setLayoutX(areaMapback.getLayoutX());
-            areaCompass.setLayoutY(areaMapback.getLayoutY());
             areaCompass.getChildren().add(compassImageView);
 
-            areaMinimap = new Pane();
-            areaMinimap.setLayoutX(561);
-            areaMinimap.setLayoutY(6);
+            areaMinimap = setupPane("mapback");
             Circle minimapCircle = new Circle(100);
             minimapCircle.setFill(Color.BLACK);
             minimapCircle.setCenterX(100);
             minimapCircle.setCenterY(100);
-
             areaMinimap.getChildren().add(minimapCircle);
 
             root.getChildren().addAll(
                     areaViewport, areaChatback, areaCompass, areaMinimap, areaMapback,
-                    areaBackbase1,  areaBackbase2, areaBackhmid1,
+                    areaBackbase1, areaBackbase2, areaBackhmid1,
                     areaBackleft1, areaBackleft2, areaBackright1, areaBackright2,
                     areaBacktop1, areaBacktop2, areaBackvmid1, areaBackvmid2, areaBackvmid3,
-                    areaBackhmid2, areaSidebar, areaInvback);
+                    areaBackhmid2, areaSidebar);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -2234,7 +2137,7 @@ public class LostCityInterfaceEditor extends Application {
         ArrayList<String> lines = new ArrayList<>();
         ArrayList<Integer> lineStartXPositions = new ArrayList<>();
         ArrayList<Double> lineYPositions = new ArrayList<>();
-        CustomFontHelper font;
+        FontHelper font;
         String text;
         boolean shadowed;
         boolean centered;

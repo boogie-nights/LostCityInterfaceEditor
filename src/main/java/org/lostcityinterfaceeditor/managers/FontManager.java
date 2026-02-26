@@ -2,16 +2,21 @@ package org.lostcityinterfaceeditor.managers;
 
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
-import org.lostcityinterfaceeditor.helpers.CustomFontHelper;
+import org.lostcityinterfaceeditor.helpers.FontHelper;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class FontManager {
 
-    private final Map<String, CustomFontHelper> fonts = new HashMap<>();
+    private final Map<String, FontHelper> fonts = new HashMap<>();
+
+    public List<String> getLoadedFontNames() {
+        List<String> names = new ArrayList<>(fonts.keySet());
+        Collections.sort(names);
+        return names;
+    }
 
     public void loadFont(String fontImageFile) throws IOException {
         File fontFile = new File(fontImageFile);
@@ -21,17 +26,17 @@ public class FontManager {
             fontName = fontName.substring(0, dotIndex);
         }
 
-        CustomFontHelper font = new CustomFontHelper(fontImageFile);
+        FontHelper font = new FontHelper(fontImageFile);
         fonts.put(fontName, font);
     }
 
-    public CustomFontHelper getFont(String fontName) {
+    public FontHelper getFont(String fontName) {
         return fonts.get(fontName);
     }
 
     public void drawTaggableText(GraphicsContext gc, String fontName, String text,
                                  double x, double y, int rgb, boolean shadow) {
-        CustomFontHelper font = getFont(fontName);
+        FontHelper font = getFont(fontName);
         Color color = Color.rgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
 
         if (font != null) {

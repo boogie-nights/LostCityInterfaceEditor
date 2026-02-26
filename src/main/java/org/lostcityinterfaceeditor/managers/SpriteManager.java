@@ -1,7 +1,7 @@
 package org.lostcityinterfaceeditor.managers;
 
 import javafx.scene.image.WritableImage;
-import org.lostcityinterfaceeditor.helpers.CustomSpriteHelper;
+import org.lostcityinterfaceeditor.helpers.SpriteHelper;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 public class SpriteManager {
-    private final Map<String, CustomSpriteHelper> sprites = new HashMap<>();
+    private final Map<String, SpriteHelper> sprites = new HashMap<>();
     private final Map<String, String> spriteSourcePaths = new HashMap<>();
     private final List<String> spriteDirectories = new ArrayList<>();
 
@@ -28,17 +28,17 @@ public class SpriteManager {
         if (dotIndex > 0) {
             spriteName = spriteName.substring(0, dotIndex);
         }
-        CustomSpriteHelper customSpriteHelper = new CustomSpriteHelper(spriteImageFile);
+        SpriteHelper customSpriteHelper = new SpriteHelper(spriteImageFile);
         sprites.put(spriteName, customSpriteHelper);
         spriteSourcePaths.put(spriteName, spriteFile.getAbsolutePath());
     }
 
-    public CustomSpriteHelper getSprites(String spriteName) {
+    public SpriteHelper getSprites(String spriteName) {
         return sprites.get(spriteName);
     }
 
     public WritableImage getSprite(String name, int index) {
-        CustomSpriteHelper helper = getSprites(name);
+        SpriteHelper helper = getSprites(name);
         if (helper != null && index >= 0 && index < helper.sprites.size()) {
             return helper.sprites.get(index);
         }
@@ -50,7 +50,7 @@ public class SpriteManager {
     }
 
     public void saveSprite(String spriteName, int spriteIndex, WritableImage sprite) throws IOException {
-        CustomSpriteHelper spriteHelper = sprites.get(spriteName);
+        SpriteHelper spriteHelper = sprites.get(spriteName);
         if (spriteHelper != null && spriteIndex >= 0 && spriteIndex < spriteHelper.sprites.size()) {
             spriteHelper.sprites.set(spriteIndex, sprite);
 

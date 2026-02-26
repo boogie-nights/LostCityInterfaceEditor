@@ -34,6 +34,8 @@ public class OptFileTransformer {
                             TextureOptions options = parseTextureOptions(filePath);
                             if (options != null) {
                                 textureOptions.put(name, options);
+                            } else {
+                                textureOptions.put(name, new TextureOptions(0, 0, 128, 128, 0));
                             }
                         } catch (IOException e) {
                             System.err.println("Error processing texture options file: " + filePath);
@@ -55,18 +57,13 @@ public class OptFileTransformer {
             String dataLine = reader.readLine();
             if (dataLine != null) {
                 String[] parts = dataLine.split(",");
-                if (parts.length == 5) {
+                if (parts.length > 3) {
                     try {
                         int cropX = Integer.parseInt(parts[0].trim());
                         int cropY = Integer.parseInt(parts[1].trim());
                         int width = Integer.parseInt(parts[2].trim());
                         int height = Integer.parseInt(parts[3].trim());
-                        String pixelOrderStr = parts[4].trim().toLowerCase();
-
                         int pixelOrder = 0;
-                        if (pixelOrderStr.equals("column")) {
-                            pixelOrder = 1;
-                        }
 
                         return new TextureOptions(cropX, cropY, width, height, pixelOrder);
                     } catch (NumberFormatException e) {

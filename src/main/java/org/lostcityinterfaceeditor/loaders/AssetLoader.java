@@ -79,7 +79,7 @@ public class AssetLoader {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Directory Selection");
         alert.setHeaderText("Select Server Data Source Directory");
-        alert.setContentText("Please select the root directory containing your server's 'models', 'sprites', 'fonts', etc. folders (e.g., '../Server/data/src/').");
+        alert.setContentText("Please select the root directory containing your server's 'models', 'sprites', 'fonts', etc. folders (e.g., '../Server/content/').");
         alert.showAndWait();
 
         DirectoryChooser directoryChooser = new DirectoryChooser();

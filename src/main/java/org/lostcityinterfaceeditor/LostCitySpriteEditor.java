@@ -10,7 +10,7 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
-import org.lostcityinterfaceeditor.helpers.CustomSpriteHelper;
+import org.lostcityinterfaceeditor.helpers.SpriteHelper;
 import org.lostcityinterfaceeditor.loaders.AssetLoader;
 import org.lostcityinterfaceeditor.managers.SpriteManager;
 
@@ -63,7 +63,7 @@ public class LostCitySpriteEditor {
         });
 
         dialog.showAndWait().ifPresent(spriteName -> {
-            CustomSpriteHelper spriteHelper = assetLoader.getSpriteManager().getSprites(spriteName);
+            SpriteHelper spriteHelper = assetLoader.getSpriteManager().getSprites(spriteName);
             if (spriteHelper != null && !spriteHelper.sprites.isEmpty()) {
                 openPixelEditor(spriteName);
             }
@@ -252,7 +252,7 @@ public class LostCitySpriteEditor {
 
     private static void openPixelEditor(String spriteName) {
         SpriteManager spriteManager = assetLoader.getSpriteManager();
-        CustomSpriteHelper spriteHelper = spriteManager.getSprites(spriteName);
+        SpriteHelper spriteHelper = spriteManager.getSprites(spriteName);
 
         if (spriteHelper == null || spriteHelper.sprites.isEmpty()) {
             showAlert(Alert.AlertType.ERROR, "Error",
