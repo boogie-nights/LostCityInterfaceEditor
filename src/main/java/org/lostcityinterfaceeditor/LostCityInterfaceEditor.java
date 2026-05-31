@@ -1256,16 +1256,20 @@ public class LostCityInterfaceEditor extends Application {
                     node != areaViewport &&
                     node != areaSidebar &&
                     node != tooltipPane &&
-                    node != backgroundCanvas) {
+                    node != backgroundCanvas &&
+                    node != interfaceRenderArea) {
 
                 if (node instanceof Pane) {
                     String id = node.getId();
                     if (id != null && (
                             id.startsWith("layer_") ||
-                                    id.startsWith("graphic_") ||
-                                    id.startsWith("rect_") ||
-                                    id.startsWith("model_") ||
-                                    id.startsWith("text_"))) {
+                            id.startsWith("graphic_") ||
+                            id.startsWith("rect_") ||
+                            id.startsWith("model_") ||
+                            id.startsWith("text_") ||
+                            id.startsWith("scrollbar_")
+                        )
+                    ) {
                         nodesToRemove.add(node);
                     }
                 }
@@ -1280,16 +1284,20 @@ public class LostCityInterfaceEditor extends Application {
                     node != areaViewport &&
                     node != areaSidebar &&
                     node != tooltipPane &&
-                    node != backgroundCanvas) {
+                    node != backgroundCanvas &&
+                    node != interfaceRenderArea) {
 
                 if (node instanceof Pane) {
                     String id = node.getId();
                     if (id != null && (
                             id.startsWith("layer_") ||
-                                    id.startsWith("graphic_") ||
-                                    id.startsWith("rect_") ||
-                                    id.startsWith("model_") ||
-                                    id.startsWith("text_"))) {
+                            id.startsWith("graphic_") ||
+                            id.startsWith("rect_") ||
+                            id.startsWith("model_") ||
+                            id.startsWith("text_") ||
+                            id.startsWith("scrollbar_")
+                        )
+                    ) {
                         nodesToRemove.add(node);
                     }
                 }
@@ -1795,12 +1803,15 @@ public class LostCityInterfaceEditor extends Application {
                 if (component.getLayer() != null && !component.getLayer().isEmpty()) {
                     Pane parentPane = componentPaneMap.get(component.getLayer());
                     if (parentPane != null) {
+                        System.out.println("AHHHH PARENT PANE IS NULL");
                         parentPane.getChildren().add(scrollbarPane);
                     } else {
+                        System.out.println("AHHHH ROOT PANE IS NULL");
                         root.getChildren().add(scrollbarPane);
                     }
                 } else {
-                    root.getChildren().add(scrollbarPane);
+                    System.out.println("AHHHH ELSE");
+                    interfaceRenderArea.getChildren().add(scrollbarPane);
                 }
             }
 
