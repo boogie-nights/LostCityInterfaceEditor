@@ -1803,14 +1803,11 @@ public class LostCityInterfaceEditor extends Application {
                 if (component.getLayer() != null && !component.getLayer().isEmpty()) {
                     Pane parentPane = componentPaneMap.get(component.getLayer());
                     if (parentPane != null) {
-                        System.out.println("AHHHH PARENT PANE IS NULL");
                         parentPane.getChildren().add(scrollbarPane);
                     } else {
-                        System.out.println("AHHHH ROOT PANE IS NULL");
                         root.getChildren().add(scrollbarPane);
                     }
                 } else {
-                    System.out.println("AHHHH ELSE");
                     interfaceRenderArea.getChildren().add(scrollbarPane);
                 }
             }
