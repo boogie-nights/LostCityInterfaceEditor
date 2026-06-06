@@ -84,6 +84,7 @@ public class LostCityInterfaceEditor extends Application {
     private AssetLoader assetLoader;
     private ScrollPane propertiesScrollPane;
     private LayoutHelper activeLayout = LayoutHelper.Standard;
+    private Pane interfaceRenderArea;
 
     public static void main(String[] args) {
         launch();
@@ -539,8 +540,43 @@ public class LostCityInterfaceEditor extends Application {
         spriteEditorButton.setMaxWidth(Double.MAX_VALUE);
         spriteEditorButton.setOnAction(event -> LostCitySpriteEditor.openSpriteEditor(assetLoader));
 
+        String[] interfaceDisplayLocations = {
+                "Chatbox",
+                "Main Window",
+                "Sidebar"
+        };
+        ComboBox interfaceDisplayLocation = new ComboBox(FXCollections.observableArrayList(interfaceDisplayLocations));
+        interfaceDisplayLocation.setMaxWidth(Double.MAX_VALUE);
+        interfaceDisplayLocation.getSelectionModel().select(1);
+        interfaceDisplayLocation.setOnAction(event -> {
+
+            if (interfaceDisplayLocation.getValue().equals("Chatbox")) {
+                clearRenderedComponents();
+                interfaceRenderArea = areaChatback;
+                renderInterfaceComponents();
+                populateComponentTreeView();
+                System.out.println("Draw interface in chatbox");
+            }
+
+            if (interfaceDisplayLocation.getValue().equals("Main Window")) {
+                clearRenderedComponents();
+                interfaceRenderArea = areaViewport;
+                renderInterfaceComponents();
+                populateComponentTreeView();
+                System.out.println("Draw interface in viewport");
+            }
+
+            if (interfaceDisplayLocation.getValue().equals("Sidebar")) {
+                clearRenderedComponents();
+                interfaceRenderArea = areaSidebar;
+                renderInterfaceComponents();
+                populateComponentTreeView();
+                System.out.println("Draw interface in sidebar");
+            }
+        });
+
         VBox buttonBox = new VBox(5);
-        buttonBox.getChildren().addAll(addComponentButton, loadInterfaceButton, saveInterfaceButton, spriteEditorButton);
+        buttonBox.getChildren().addAll(addComponentButton, loadInterfaceButton, saveInterfaceButton, spriteEditorButton, interfaceDisplayLocation);
         VBox.setMargin(buttonBox, new Insets(10, 0, 0, 0));
 
         sidebarVBox.getChildren().addAll(treeViewLabel, componentTreeView, selectionHintLabel, buttonBox);
@@ -1050,7 +1086,7 @@ public class LostCityInterfaceEditor extends Application {
                 }
             }
         }
-        for (Node node : areaViewport.getChildren()) {
+        for (Node node : interfaceRenderArea.getChildren()) {
             if (node.getId() != null &&
                     (node.getId().equals("layer_" + componentName) ||
                             node.getId().equals("graphic_" + componentName) ||
@@ -1063,7 +1099,7 @@ public class LostCityInterfaceEditor extends Application {
             }
         }
 
-        for (Node node : areaViewport.getChildren()) {
+        for (Node node : interfaceRenderArea.getChildren()) {
             if (node instanceof Pane && node.getId() != null && node.getId().startsWith("layer_")) {
                 Pane layerPane = (Pane) node;
                 for (Node childNode : layerPane.getChildren()) {
@@ -1120,9 +1156,9 @@ public class LostCityInterfaceEditor extends Application {
                 double newX = component.getX() + deltaX;
                 double newY = component.getY() + deltaY;
 
-                if (componentPane.getParent() == areaViewport) {
-                    newX = Math.max(0, Math.min(newX, areaViewport.getWidth() - component.getWidth()));
-                    newY = Math.max(0, Math.min(newY, areaViewport.getHeight() - component.getHeight()));
+                if (componentPane.getParent() == interfaceRenderArea) {
+                    newX = Math.max(0, Math.min(newX, interfaceRenderArea.getWidth() - component.getWidth()));
+                    newY = Math.max(0, Math.min(newY, interfaceRenderArea.getHeight() - component.getHeight()));
                 }
 
                 component.setX((int) newX);
@@ -1165,8 +1201,8 @@ public class LostCityInterfaceEditor extends Application {
             });
         }
 
-        else if (componentPane.getParent() == areaViewport) {
-            areaViewport.setOnMouseExited(event -> {
+        else if (componentPane.getParent() == interfaceRenderArea) {
+            interfaceRenderArea.setOnMouseExited(event -> {
                 if (isDragging) {
                     isDragging = false;
                     event.consume();
@@ -1220,16 +1256,20 @@ public class LostCityInterfaceEditor extends Application {
                     node != areaViewport &&
                     node != areaSidebar &&
                     node != tooltipPane &&
-                    node != backgroundCanvas) {
+                    node != backgroundCanvas &&
+                    node != interfaceRenderArea) {
 
                 if (node instanceof Pane) {
                     String id = node.getId();
                     if (id != null && (
                             id.startsWith("layer_") ||
-                                    id.startsWith("graphic_") ||
-                                    id.startsWith("rect_") ||
-                                    id.startsWith("model_") ||
-                                    id.startsWith("text_"))) {
+                            id.startsWith("graphic_") ||
+                            id.startsWith("rect_") ||
+                            id.startsWith("model_") ||
+                            id.startsWith("text_") ||
+                            id.startsWith("scrollbar_")
+                        )
+                    ) {
                         nodesToRemove.add(node);
                     }
                 }
@@ -1238,28 +1278,32 @@ public class LostCityInterfaceEditor extends Application {
         root.getChildren().removeAll(nodesToRemove);
         nodesToRemove.clear();
 
-        for (Node node : areaViewport.getChildren()) {
+        for (Node node : interfaceRenderArea.getChildren()) {
             if (node != sidebarVBox &&
                     node != propertiesSidebarVBox &&
                     node != areaViewport &&
                     node != areaSidebar &&
                     node != tooltipPane &&
-                    node != backgroundCanvas) {
+                    node != backgroundCanvas &&
+                    node != interfaceRenderArea) {
 
                 if (node instanceof Pane) {
                     String id = node.getId();
                     if (id != null && (
                             id.startsWith("layer_") ||
-                                    id.startsWith("graphic_") ||
-                                    id.startsWith("rect_") ||
-                                    id.startsWith("model_") ||
-                                    id.startsWith("text_"))) {
+                            id.startsWith("graphic_") ||
+                            id.startsWith("rect_") ||
+                            id.startsWith("model_") ||
+                            id.startsWith("text_") ||
+                            id.startsWith("scrollbar_")
+                        )
+                    ) {
                         nodesToRemove.add(node);
                     }
                 }
             }
         }
-        areaViewport.getChildren().removeAll(nodesToRemove);
+        interfaceRenderArea.getChildren().removeAll(nodesToRemove);
 
         activeComponentName = null;
 
@@ -1456,8 +1500,8 @@ public class LostCityInterfaceEditor extends Application {
             else if ("model".equals(component.getType())) {
                 try {
                     componentPane = new Pane();
-                    componentPane.setLayoutX(component.getX() + areaViewport.getLayoutX());
-                    componentPane.setLayoutY(component.getY() + areaViewport.getLayoutY());
+                    componentPane.setLayoutX(component.getX() + interfaceRenderArea.getLayoutX());
+                    componentPane.setLayoutY(component.getY() + interfaceRenderArea.getLayoutY());
                     componentPane.setId("model_" + component.getName());
 
                     Model model = assetLoader.getModel(component.getModel());
@@ -1764,7 +1808,7 @@ public class LostCityInterfaceEditor extends Application {
                         root.getChildren().add(scrollbarPane);
                     }
                 } else {
-                    root.getChildren().add(scrollbarPane);
+                    interfaceRenderArea.getChildren().add(scrollbarPane);
                 }
             }
 
@@ -1898,11 +1942,11 @@ public class LostCityInterfaceEditor extends Application {
                         }
                         parentPane.getChildren().add(componentPane);
                     } else {
-                        areaViewport.getChildren().add(componentPane);
+                        interfaceRenderArea.getChildren().add(componentPane);
                         System.out.println("Warning: Parent layer pane not found for " + component.getName() + ", adding to root");
                     }
                 } else {
-                    areaViewport.getChildren().add(componentPane);
+                    interfaceRenderArea.getChildren().add(componentPane);
                 }
                 if (component.getLayer() != null && !component.getLayer().isEmpty()) {
                     boolean parentVisible = layerVisibilityMap.getOrDefault(component.getLayer(), true);
@@ -2121,6 +2165,8 @@ public class LostCityInterfaceEditor extends Application {
             minimapCircle.setCenterX(100);
             minimapCircle.setCenterY(100);
             areaMinimap.getChildren().add(minimapCircle);
+
+            interfaceRenderArea = areaViewport;
 
             root.getChildren().addAll(
                     areaViewport, areaChatback, areaCompass, areaMinimap, areaMapback,
