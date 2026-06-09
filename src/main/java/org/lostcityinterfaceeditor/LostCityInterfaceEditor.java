@@ -5,7 +5,6 @@ import javafx.collections.FXCollections;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
-import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
@@ -16,7 +15,6 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
@@ -28,6 +26,13 @@ import org.lostcityinterfaceeditor.fileUtils.InterfaceFileWriter;
 import org.lostcityinterfaceeditor.helpers.FontHelper;
 import org.lostcityinterfaceeditor.helpers.LayoutHelper;
 import org.lostcityinterfaceeditor.loaders.AssetLoader;
+import org.lostcityinterfaceeditor.models.ApplicationState;
+import org.lostcityinterfaceeditor.models.InterfaceComponent;
+import org.lostcityinterfaceeditor.ui.ComponentPropertiesBuilder;
+import org.lostcityinterfaceeditor.ui.InterfaceComponentsBuilder;
+import org.lostcityinterfaceeditor.ui.RuneScapeUiBuilder;
+import org.lostcityinterfaceeditor.ui.ScreenBuilder;
+import org.lostcityinterfaceeditor.ui.widget.Widgets;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,32 +46,7 @@ import java.util.function.Consumer;
 public class LostCityInterfaceEditor extends Application {
 
     private Map<String, Double> originalViewOrderMap = new HashMap<>();
-    private ImageView compassImageView;
-    private Pane areaMinimap;
-    private Pane areaCompass;
-    private Pane areaBackleft1;
-    private Pane areaBackleft2;
-    private Pane areaBackright1;
-    private Pane areaBackright2;
-    private Pane areaBacktop1;
-    private Pane areaBacktop2;
-    private Pane areaBackvmid1;
-    private Pane areaBackvmid2;
-    private Pane areaBackvmid3;
-    private Pane areaBackhmid2;
-    private Pane areaChatback;
-    private Pane areaMapback;
-    private Pane areaBackbase1;
-    private Pane areaBackbase2;
-    private Pane areaBackhmid1;
-    private Pane areaViewport;
-    private Pane areaSidebar;
-    private Canvas tooltipCanvas;
-    private Pane tooltipPane;
-    private GraphicsContext gc;
-    private AnchorPane root;
-    private Canvas backgroundCanvas;
-    private Scene scene;
+
     private List<InterfaceComponent> interfaceComponents;
     private String activeComponentName = null;
     private Map<String, EventHandler<MouseEvent>> originalClickHandlers = new HashMap<>();
@@ -83,15 +63,20 @@ public class LostCityInterfaceEditor extends Application {
     private Map<String, TextRenderInfo> textRenderInfoMap = new HashMap<>();
     private AssetLoader assetLoader;
     private ScrollPane propertiesScrollPane;
-    private LayoutHelper activeLayout = LayoutHelper.Standard;
-    private Pane interfaceRenderArea;
+    private ApplicationState applicationState;
+    private Canvas tooltipCanvas;
+    private Pane tooltipPane;
+
+    private AnchorPane root;
 
     public static void main(String[] args) {
-        launch();
+        launch(args);
     }
 
     @Override
     public void start(Stage stage) {
+        this.applicationState = new ApplicationState();
+
         try {
             serverDirectoryPath = AssetLoader.chooseServerDirectory(stage);
             if (serverDirectoryPath == null) {
@@ -103,14 +88,22 @@ public class LostCityInterfaceEditor extends Application {
             }
             assetLoader = new AssetLoader(serverDirectoryPath);
             assetLoader.loadAll();
-            initializeUIComponents();
-            initializeSidebar();
-            initializePropertiesSidebar();
-            initializeSelectionHighlight();
-            stage.setTitle("Lost City Interface Editor");
+
+            RuneScapeUiBuilder runeScapeUiBuilder = new RuneScapeUiBuilder(assetLoader, applicationState);
+            InterfaceComponentsBuilder interfaceComponentsBuilder = new InterfaceComponentsBuilder(assetLoader, applicationState);
+            ComponentPropertiesBuilder componentPropertiesBuilder = new ComponentPropertiesBuilder(applicationState);
+
+            Region sceneRoot = new ScreenBuilder(runeScapeUiBuilder, interfaceComponentsBuilder, componentPropertiesBuilder).build();
+            Scene scene = new Scene(sceneRoot);
+
+            scene.getStylesheets().add("https://raw.githubusercontent.com/antoniopelusi/JavaFX-Dark-Theme/main/style.css");
+
+//            initializePropertiesSidebar();
+//            initializeSelectionHighlight();
+//            populateComponentTreeView();
             stage.setScene(scene);
+            stage.setTitle("Lost City Interface Editor");
             stage.show();
-            populateComponentTreeView();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -126,39 +119,13 @@ public class LostCityInterfaceEditor extends Application {
         Optional<String> result = dialog.showAndWait();
         if (result.isPresent()) {
             if (result.get().equals("Legacy (225)")) {
-                activeLayout = LayoutHelper.Legacy;
+                applicationState.setActiveLayout(LayoutHelper.Legacy);
             } else {
-                activeLayout = LayoutHelper.Standard;
+                applicationState.setActiveLayout(LayoutHelper.Standard);
             }
             return true;
         }
         return false;
-    }
-
-    private Pane setupPane(String key) {
-        Rectangle2D rect = activeLayout.get(key);
-        Pane p = new Pane();
-        p.setLayoutX(rect.getMinX());
-        p.setLayoutY(rect.getMinY());
-        if (rect.getWidth() > 0) p.setPrefSize(rect.getWidth(), rect.getHeight());
-        return p;
-    }
-
-    private Pane setupPaneWithSprite(String key, String spriteName, int index) {
-        Pane p = setupPane(key);
-        ImageView iv = new ImageView(assetLoader.getSpriteManager().getSprite(spriteName, index));
-        p.getChildren().add(iv);
-        return p;
-    }
-
-    private void addIconsToPane(Pane parent, String iconKey, int startIdx) {
-        List<Point2D> points = activeLayout.getIcons(iconKey);
-        for (int i = 0; i < points.size(); i++) {
-            ImageView iv = new ImageView(assetLoader.getSpriteManager().getSprite("sideicons", startIdx + i));
-            iv.setLayoutX(points.get(i).getX());
-            iv.setLayoutY(points.get(i).getY());
-            parent.getChildren().add(iv);
-        }
     }
 
     private void initializePropertiesSidebar() {
@@ -173,7 +140,7 @@ public class LostCityInterfaceEditor extends Application {
         propertiesScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         propertiesScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
 
-        root.getChildren().add(propertiesScrollPane);
+        //root.getChildren().add(propertiesScrollPane);
 
         AnchorPane.setTopAnchor(propertiesScrollPane, 0.0);
         AnchorPane.setBottomAnchor(propertiesScrollPane, 0.0);
@@ -194,77 +161,77 @@ public class LostCityInterfaceEditor extends Application {
             return;
         }
 
-        addSectionHeader(propertiesSidebarVBox, "General Properties");
+        Widgets.addSectionHeader(propertiesSidebarVBox, "General Properties");
 
-        addReadOnlyProperty(propertiesSidebarVBox, "Name", component.getName());
-        addReadOnlyProperty(propertiesSidebarVBox, "Type", component.getType());
-        addEditableProperty(propertiesSidebarVBox, "X", String.valueOf(component.getX()), value -> component.setX(Integer.parseInt(value)));
-        addEditableProperty(propertiesSidebarVBox, "Y", String.valueOf(component.getY()), value -> component.setY(Integer.parseInt(value)));
-        addEditableProperty(propertiesSidebarVBox, "Width", String.valueOf(component.getWidth()), value -> component.setWidth(Integer.parseInt(value)));
-        addEditableProperty(propertiesSidebarVBox, "Height", String.valueOf(component.getHeight()), value -> component.setHeight(Integer.parseInt(value)));
-        addEditableProperty(propertiesSidebarVBox, "Layer", component.getLayer(), value -> component.setLayer(value));
-        addEditableProperty(propertiesSidebarVBox, "Overlayer", component.getOverlayer(), value -> component.setOverlayer(value));
-        addEditableProperty(propertiesSidebarVBox, "Option", component.getOption(), value -> component.setOption(value));
-        addEditableProperty(propertiesSidebarVBox, "Button Type", component.getButtonType(), value -> component.setButtonType(value));
-        addEditableProperty(propertiesSidebarVBox, "Client Code", String.valueOf(component.getClientCode()),
+        Widgets.addReadOnlyProperty(propertiesSidebarVBox, "Name", component.getName());
+        Widgets.addReadOnlyProperty(propertiesSidebarVBox, "Type", component.getType());
+        Widgets.addEditableProperty(propertiesSidebarVBox, "X", String.valueOf(component.getX()), value -> component.setX(Integer.parseInt(value)));
+        Widgets.addEditableProperty(propertiesSidebarVBox, "Y", String.valueOf(component.getY()), value -> component.setY(Integer.parseInt(value)));
+        Widgets.addEditableProperty(propertiesSidebarVBox, "Width", String.valueOf(component.getWidth()), value -> component.setWidth(Integer.parseInt(value)));
+        Widgets.addEditableProperty(propertiesSidebarVBox, "Height", String.valueOf(component.getHeight()), value -> component.setHeight(Integer.parseInt(value)));
+        Widgets.addEditableProperty(propertiesSidebarVBox, "Layer", component.getLayer(), value -> component.setLayer(value));
+        Widgets.addEditableProperty(propertiesSidebarVBox, "Overlayer", component.getOverlayer(), value -> component.setOverlayer(value));
+        Widgets.addEditableProperty(propertiesSidebarVBox, "Option", component.getOption(), value -> component.setOption(value));
+        Widgets.addEditableProperty(propertiesSidebarVBox, "Button Type", component.getButtonType(), value -> component.setButtonType(value));
+        Widgets.addEditableProperty(propertiesSidebarVBox, "Client Code", String.valueOf(component.getClientCode()),
                 value -> component.setClientCode(Integer.parseInt(value)));
 
         if (component.getButtonType() != null && component.getButtonType().contains("target")) {
-            addEditableProperty(propertiesSidebarVBox, "Action Verb", component.getActionVerb(), value -> component.setActionVerb(value));
-            addEditableProperty(propertiesSidebarVBox, "Action Target", component.getActionTarget(), value -> component.setActionTarget(value));
-            addEditableProperty(propertiesSidebarVBox, "Action", component.getAction(), value -> component.setAction(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Action Verb", component.getActionVerb(), value -> component.setActionVerb(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Action Target", component.getActionTarget(), value -> component.setActionTarget(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Action", component.getAction(), value -> component.setAction(value));
         }
 
         String type = component.getType();
         if ("text".equals(type)) {
-            addSectionHeader(propertiesSidebarVBox, "Text Properties");
-            addEditableProperty(propertiesSidebarVBox, "Text", component.getText(), value -> component.setText(value));
-            addDropdownProperty(propertiesSidebarVBox, "Font", component.getFont(), assetLoader.getFontManager().getLoadedFontNames(), component::setFont);
-            addBooleanProperty(propertiesSidebarVBox, "Center", component.isCenter(), value -> component.setCenter(value));
-            addBooleanProperty(propertiesSidebarVBox, "Shadowed", component.isShadowed(), value -> component.setShadowed(value));
-            addColorProperty(propertiesSidebarVBox, "Colour", component.getColour(), value -> component.setColour(value));
-            addColorProperty(propertiesSidebarVBox, "Over Colour", component.getOverColour(), value -> component.setOverColour(value));
-            addColorProperty(propertiesSidebarVBox, "Active Colour", component.getActiveColour(), value -> component.setActiveColour(value));
+            Widgets.addSectionHeader(propertiesSidebarVBox, "Text Properties");
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Text", component.getText(), value -> component.setText(value));
+            Widgets.addDropdownProperty(propertiesSidebarVBox, "Font", component.getFont(), assetLoader.getFontManager().getLoadedFontNames(), component::setFont);
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Center", component.isCenter(), value -> component.setCenter(value));
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Shadowed", component.isShadowed(), value -> component.setShadowed(value));
+            Widgets.addColorProperty(propertiesSidebarVBox, "Colour", component.getColour(), value -> component.setColour(value));
+            Widgets.addColorProperty(propertiesSidebarVBox, "Over Colour", component.getOverColour(), value -> component.setOverColour(value));
+            Widgets.addColorProperty(propertiesSidebarVBox, "Active Colour", component.getActiveColour(), value -> component.setActiveColour(value));
         } else if ("graphic".equals(type)) {
-            addSectionHeader(propertiesSidebarVBox, "Graphic Properties");
-            addDropdownProperty(propertiesSidebarVBox, "Graphic Name", component.getGraphicName(), assetLoader.getSpriteManager().getAllSpriteNames(), component::setGraphicName);
-            addEditableProperty(propertiesSidebarVBox, "Graphic Index", String.valueOf(component.getGraphicIndex()),
+            Widgets.addSectionHeader(propertiesSidebarVBox, "Graphic Properties");
+            Widgets.addDropdownProperty(propertiesSidebarVBox, "Graphic Name", component.getGraphicName(), assetLoader.getSpriteManager().getAllSpriteNames(), component::setGraphicName);
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Graphic Index", String.valueOf(component.getGraphicIndex()),
                     value -> component.setGraphicIndex(Integer.parseInt(value)));
-            addDropdownProperty(propertiesSidebarVBox, "Active Graphic Name", component.getActiveGraphicName(), assetLoader.getSpriteManager().getAllSpriteNames(), component::setActiveGraphicName);
-            addEditableProperty(propertiesSidebarVBox, "Active Graphic Index", String.valueOf(component.getActiveGraphicIndex()),
+           Widgets. addDropdownProperty(propertiesSidebarVBox, "Active Graphic Name", component.getActiveGraphicName(), assetLoader.getSpriteManager().getAllSpriteNames(), component::setActiveGraphicName);
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Active Graphic Index", String.valueOf(component.getActiveGraphicIndex()),
                     value -> component.setActiveGraphicIndex(Integer.parseInt(value)));
         } else if ("layer".equals(type)) {
-            addSectionHeader(propertiesSidebarVBox, "Layer Properties");
-            addBooleanProperty(propertiesSidebarVBox, "Hide", component.isHide(), value -> component.setHide(value));
-            addEditableProperty(propertiesSidebarVBox, "Scroll", String.valueOf(component.getScroll()), value -> component.setScroll(Integer.parseInt(value)));
+            Widgets.addSectionHeader(propertiesSidebarVBox, "Layer Properties");
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Hide", component.isHide(), value -> component.setHide(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Scroll", String.valueOf(component.getScroll()), value -> component.setScroll(Integer.parseInt(value)));
         } else if ("rect".equals(type)) {
-            addSectionHeader(propertiesSidebarVBox, "Rectangle Properties");
-            addColorProperty(propertiesSidebarVBox, "Colour", component.getColour(), value -> component.setColour(value));
-            addBooleanProperty(propertiesSidebarVBox, "Fill", component.isFill(), value -> component.setFill(value));
+            Widgets.addSectionHeader(propertiesSidebarVBox, "Rectangle Properties");
+            Widgets.addColorProperty(propertiesSidebarVBox, "Colour", component.getColour(), value -> component.setColour(value));
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Fill", component.isFill(), value -> component.setFill(value));
         } else if ("model".equals(type)) {
-            addSectionHeader(propertiesSidebarVBox, "Model Properties");
-            addEditableProperty(propertiesSidebarVBox, "Model", component.getModel(), value -> component.setModel(value));
-            addEditableProperty(propertiesSidebarVBox, "Active Model", component.getActiveModel(), value -> component.setActiveModel(value));
-            addEditableProperty(propertiesSidebarVBox, "Active Animation", component.getActiveAnim(), value -> component.setActiveAnim(value));
-            addEditableProperty(propertiesSidebarVBox, "Xan", String.valueOf(component.getXan()),
+            Widgets.addSectionHeader(propertiesSidebarVBox, "Model Properties");
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Model", component.getModel(), value -> component.setModel(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Active Model", component.getActiveModel(), value -> component.setActiveModel(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Active Animation", component.getActiveAnim(), value -> component.setActiveAnim(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Xan", String.valueOf(component.getXan()),
                     value -> component.setXan(Integer.parseInt(value)));
-            addEditableProperty(propertiesSidebarVBox, "Yan", String.valueOf(component.getYan()),
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Yan", String.valueOf(component.getYan()),
                     value -> component.setYan(Integer.parseInt(value)));
-            addEditableProperty(propertiesSidebarVBox, "Zoom", String.valueOf(component.getZoom()),
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Zoom", String.valueOf(component.getZoom()),
                     value -> component.setZoom(Integer.parseInt(value)));
         } else if ("inv".equals(type)) {
-            addSectionHeader(propertiesSidebarVBox, "Inventory Properties");
-            addBooleanProperty(propertiesSidebarVBox, "Draggable", component.isDraggable(), value -> component.setDraggable(value));
-            addBooleanProperty(propertiesSidebarVBox, "Interactable", component.isInteractable(), value -> component.setInteractable(value));
-            addBooleanProperty(propertiesSidebarVBox, "Usable", component.isUsable(), value -> component.setUsable(value));
-            addEditableProperty(propertiesSidebarVBox, "Margin", component.getMargin(), value -> component.setMargin(value));
+            Widgets.addSectionHeader(propertiesSidebarVBox, "Inventory Properties");
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Draggable", component.isDraggable(), value -> component.setDraggable(value));
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Interactable", component.isInteractable(), value -> component.setInteractable(value));
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Usable", component.isUsable(), value -> component.setUsable(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Margin", component.getMargin(), value -> component.setMargin(value));
             List<String> invOptions = component.getInvOptions();
             if (invOptions != null) {
                 for (int i = 0; i < invOptions.size(); i++) {
                     final int optionIndex = i;
                     String optionValue = invOptions.get(i);
                     String optionLabel = "Option " + (i + 1);
-                    addEditableProperty(propertiesSidebarVBox, optionLabel, optionValue, value -> {
+                    Widgets.addEditableProperty(propertiesSidebarVBox, optionLabel, optionValue, value -> {
                         List<String> options = new ArrayList<>(component.getInvOptions());
                         options.set(optionIndex, value);
                         component.setInvOptions(options);
@@ -272,20 +239,20 @@ public class LostCityInterfaceEditor extends Application {
                 }
             }
         } else if ("invtext".equals(type)) {
-            addSectionHeader(propertiesSidebarVBox, "Inventory Text Properties");
-            addDropdownProperty(propertiesSidebarVBox, "Font", component.getFont(), assetLoader.getFontManager().getLoadedFontNames(), component::setFont);
-            addBooleanProperty(propertiesSidebarVBox, "Center", component.isCenter(), value -> component.setCenter(value));
-            addBooleanProperty(propertiesSidebarVBox, "Shadowed", component.isShadowed(), value -> component.setShadowed(value));
-            addColorProperty(propertiesSidebarVBox, "Colour", component.getColour(), value -> component.setColour(value));
-            addEditableProperty(propertiesSidebarVBox, "Margin", component.getMargin(), value -> component.setMargin(value));
-            addBooleanProperty(propertiesSidebarVBox, "Interactable", component.isInteractable(), value -> component.setInteractable(value));
+            Widgets.addSectionHeader(propertiesSidebarVBox, "Inventory Text Properties");
+            Widgets.addDropdownProperty(propertiesSidebarVBox, "Font", component.getFont(), assetLoader.getFontManager().getLoadedFontNames(), component::setFont);
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Center", component.isCenter(), value -> component.setCenter(value));
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Shadowed", component.isShadowed(), value -> component.setShadowed(value));
+            Widgets.addColorProperty(propertiesSidebarVBox, "Colour", component.getColour(), value -> component.setColour(value));
+            Widgets.addEditableProperty(propertiesSidebarVBox, "Margin", component.getMargin(), value -> component.setMargin(value));
+            Widgets.addBooleanProperty(propertiesSidebarVBox, "Interactable", component.isInteractable(), value -> component.setInteractable(value));
             List<String> invOptions = component.getInvOptions();
             if (invOptions != null) {
                 for (int i = 0; i < invOptions.size(); i++) {
                     final int optionIndex = i;
                     String optionValue = invOptions.get(i);
                     String optionLabel = "Option " + (i + 1);
-                    addEditableProperty(propertiesSidebarVBox, optionLabel, optionValue, value -> {
+                    Widgets.addEditableProperty(propertiesSidebarVBox, optionLabel, optionValue, value -> {
                         List<String> options = new ArrayList<>(component.getInvOptions());
                         options.set(optionIndex, value);
                         component.setInvOptions(options);
@@ -295,11 +262,11 @@ public class LostCityInterfaceEditor extends Application {
         }
 
         if (component.getScripts() != null && !component.getScripts().isEmpty()) {
-            addSectionHeader(propertiesSidebarVBox, "Scripts");
+            Widgets.addSectionHeader(propertiesSidebarVBox, "Scripts");
             for (Map.Entry<Integer, InterfaceFileParser.Script> scriptEntry : component.getScripts().entrySet()) {
                 final int scriptKey = scriptEntry.getKey();
                 String scriptValue = scriptEntry.getValue() != null ? scriptEntry.getValue().toString() : "null";
-                addReadOnlyProperty(propertiesSidebarVBox, "Script " + scriptKey, scriptValue);
+                Widgets.addReadOnlyProperty(propertiesSidebarVBox, "Script " + scriptKey, scriptValue);
             }
         }
 
@@ -333,200 +300,19 @@ public class LostCityInterfaceEditor extends Application {
         propertiesSidebarVBox.getChildren().add(saveChangesButton);
     }
 
-    private void addReadOnlyProperty(VBox container, String name, String value) {
-        HBox propertyRow = new HBox(5);
-        propertyRow.setPadding(new Insets(2, 0, 2, 5));
-
-        Label nameLabel = new Label(name + ":");
-        nameLabel.setMinWidth(120);
-        nameLabel.setMaxWidth(120);
-        nameLabel.setStyle("-fx-font-weight: bold;");
-
-        Label valueLabel = new Label(value != null ? value : "null");
-        valueLabel.setWrapText(true);
-
-        propertyRow.getChildren().addAll(nameLabel, valueLabel);
-        container.getChildren().add(propertyRow);
-    }
-
-    private void addEditableProperty(VBox container, String name, String value, Consumer<String> setter) {
-        HBox propertyRow = new HBox(5);
-        propertyRow.setPadding(new Insets(2, 0, 2, 5));
-
-        Label nameLabel = new Label(name + ":");
-        nameLabel.setMinWidth(120);
-        nameLabel.setMaxWidth(120);
-        nameLabel.setStyle("-fx-font-weight: bold;");
-
-        TextField valueField = new TextField(value != null ? value : "");
-        valueField.setPrefWidth(150);
-
-        valueField.focusedProperty().addListener((observable, oldValue, newValue) -> {
-            if (!newValue) {
-                try {
-                    setter.accept(valueField.getText());
-                } catch (NumberFormatException e) {
-                    valueField.setText(value != null ? value : "");
-                    showAlert("Invalid input", "Please enter a valid number for " + name);
-                }
-            }
-        });
-
-        valueField.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ENTER) {
-                try {
-                    setter.accept(valueField.getText());
-                    valueField.getParent().requestFocus();
-                } catch (NumberFormatException e) {
-                    valueField.setText(value != null ? value : "");
-                    showAlert("Invalid input", "Please enter a valid number for " + name);
-                }
-            }
-        });
-
-        propertyRow.getChildren().addAll(nameLabel, valueField);
-        container.getChildren().add(propertyRow);
-    }
-
-    private void addDropdownProperty(VBox container, String name, String currentValue, List<String> options, Consumer<String> setter) {
-        HBox propertyRow = new HBox(5);
-        propertyRow.setPadding(new Insets(2, 0, 2, 5));
-
-        Label nameLabel = new Label(name + ":");
-        nameLabel.setMinWidth(120);
-        nameLabel.setMaxWidth(120);
-        nameLabel.setStyle("-fx-font-weight: bold;");
-
-        ComboBox<String> valueComboBox = new ComboBox<>(FXCollections.observableArrayList(options));
-        valueComboBox.setPrefWidth(150);
-
-        if (currentValue != null && options.contains(currentValue)) {
-            valueComboBox.setValue(currentValue);
-        } else if (!options.isEmpty()) {
-            valueComboBox.setPromptText("Select " + name);
-        }
-
-        valueComboBox.valueProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue != null) {
-                setter.accept(newValue);
-            }
-        });
-
-        propertyRow.getChildren().addAll(nameLabel, valueComboBox);
-        container.getChildren().add(propertyRow);
-    }
-
-    private void showAlert(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
-
-    private void addBooleanProperty(VBox container, String name, boolean value, Consumer<Boolean> setter) {
-        HBox propertyRow = new HBox(5);
-        propertyRow.setPadding(new Insets(2, 0, 2, 5));
-
-        Label nameLabel = new Label(name + ":");
-        nameLabel.setMinWidth(120);
-        nameLabel.setMaxWidth(120);
-        nameLabel.setStyle("-fx-font-weight: bold;");
-
-        CheckBox checkBox = new CheckBox();
-        checkBox.setSelected(value);
-
-        checkBox.selectedProperty().addListener((observable, oldValue, newValue) -> {
-            setter.accept(newValue);
-        });
-
-        propertyRow.getChildren().addAll(nameLabel, checkBox);
-        container.getChildren().add(propertyRow);
-    }
-
-    private void addColorProperty(VBox container, String name, String value, Consumer<String> setter) {
-        HBox propertyRow = new HBox(5);
-        propertyRow.setPadding(new Insets(2, 0, 2, 5));
-
-        Label nameLabel = new Label(name + ":");
-        nameLabel.setMinWidth(120);
-        nameLabel.setMaxWidth(120);
-        nameLabel.setStyle("-fx-font-weight: bold;");
-
-        ColorPicker colorPicker = new ColorPicker();
-
-        if (value != null && !value.isEmpty()) {
-            try {
-                String colorValue = value;
-                if (value.startsWith("0x")) {
-                    colorValue = "#" + value.substring(2);
-                } else if (value.matches("\\d+")) {
-                    int decimalColor = Integer.parseInt(value);
-                    colorValue = String.format("#%06X", decimalColor);
-                }
-                colorPicker.setValue(Color.web(colorValue));
-            } catch (Exception e) {
-                System.err.println("Could not parse color value: " + value);
-            }
-        }
-
-        colorPicker.setOnAction(event -> {
-            Color color = colorPicker.getValue();
-            String hexColor = String.format("0x%02X%02X%02X",
-                    (int) (color.getRed() * 255),
-                    (int) (color.getGreen() * 255),
-                    (int) (color.getBlue() * 255));
-            setter.accept(hexColor);
-        });
-
-        propertyRow.getChildren().addAll(nameLabel, colorPicker);
-        container.getChildren().add(propertyRow);
-    }
-
-    private void addSectionHeader(VBox container, String sectionName) {
-        Label sectionLabel = new Label(sectionName);
-        sectionLabel.setStyle("-fx-font-weight: bold; -fx-padding: 5 0 2 0;");
-        container.getChildren().add(sectionLabel);
-
-        Separator separator = new Separator();
-        separator.setPrefWidth(container.getPrefWidth());
-        container.getChildren().add(separator);
-    }
-
     private void initializeSidebar() {
         sidebarVBox = new VBox(10);
         sidebarVBox.setPrefWidth(200);
         sidebarVBox.setPadding(new Insets(10));
         sidebarVBox.setStyle("-fx-background-color: lightgray;");
 
-        Label treeViewLabel = new Label("Interface Components");
-        treeViewLabel.setStyle("-fx-font-weight: bold;");
-
-        componentTreeView = new TreeView<>();
-        componentTreeView.setRoot(new TreeItem<>("Interface Components"));
-        componentTreeView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue != null) {
-                String componentName = newValue.getValue().split(" ")[0];
-                InterfaceComponent selectedComponent = null;
-                for (InterfaceComponent component : interfaceComponents) {
-                    if (component.getName().equals(componentName)) {
-                        selectedComponent = component;
-                        break;
-                    }
-                }
-                populatePropertiesSidebar(selectedComponent);
-            } else {
-                populatePropertiesSidebar(null);
-            }
-        });
-
         Label selectionHintLabel = new Label("Select a component to view properties and enable dragging");
         selectionHintLabel.setWrapText(true);
         selectionHintLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #555555;");
 
-        Button addComponentButton = new Button("Add New Component");
-        addComponentButton.setMaxWidth(Double.MAX_VALUE);
-        addComponentButton.setOnAction(e -> showAddComponentDialog());
+//        Button addComponentButton = new Button("Add New Component");
+//        addComponentButton.setMaxWidth(Double.MAX_VALUE);
+//        addComponentButton.setOnAction(e -> showAddComponentDialog());
 
         Button loadInterfaceButton = new Button("Load Interface");
         loadInterfaceButton.setMaxWidth(Double.MAX_VALUE);
@@ -552,143 +338,38 @@ public class LostCityInterfaceEditor extends Application {
 
             if (interfaceDisplayLocation.getValue().equals("Chatbox")) {
                 clearRenderedComponents();
-                interfaceRenderArea = areaChatback;
+               // interfaceRenderArea = areaChatback;
                 renderInterfaceComponents();
                 populateComponentTreeView();
-                System.out.println("Draw interface in chatbox");
             }
 
             if (interfaceDisplayLocation.getValue().equals("Main Window")) {
                 clearRenderedComponents();
-                interfaceRenderArea = areaViewport;
+               // interfaceRenderArea = areaViewport;
                 renderInterfaceComponents();
                 populateComponentTreeView();
-                System.out.println("Draw interface in viewport");
             }
 
             if (interfaceDisplayLocation.getValue().equals("Sidebar")) {
                 clearRenderedComponents();
-                interfaceRenderArea = areaSidebar;
+               // interfaceRenderArea = areaSidebar;
                 renderInterfaceComponents();
                 populateComponentTreeView();
-                System.out.println("Draw interface in sidebar");
             }
         });
 
         VBox buttonBox = new VBox(5);
-        buttonBox.getChildren().addAll(addComponentButton, loadInterfaceButton, saveInterfaceButton, spriteEditorButton, interfaceDisplayLocation);
+        buttonBox.getChildren().addAll(loadInterfaceButton, saveInterfaceButton, spriteEditorButton, interfaceDisplayLocation);
         VBox.setMargin(buttonBox, new Insets(10, 0, 0, 0));
 
-        sidebarVBox.getChildren().addAll(treeViewLabel, componentTreeView, selectionHintLabel, buttonBox);
+        sidebarVBox.getChildren().addAll(componentTreeView, selectionHintLabel, buttonBox);
         root.getChildren().add(sidebarVBox);
         AnchorPane.setTopAnchor(sidebarVBox, 0.0);
         AnchorPane.setBottomAnchor(sidebarVBox, 0.0);
         AnchorPane.setRightAnchor(sidebarVBox, 0.0);
     }
 
-    private void showAddComponentDialog() {
-        Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Add New Component");
-        dialog.setHeaderText("Select component type");
-        ButtonType confirmButtonType = new ButtonType("Create", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(confirmButtonType, ButtonType.CANCEL);
-        ComboBox<String> componentTypeCombo = new ComboBox<>();
-        componentTypeCombo.getItems().addAll("text", "graphic", "layer", "rect", "model", "inv", "invtext");
-        componentTypeCombo.setPromptText("Component Type");
-        componentTypeCombo.getSelectionModel().selectFirst();
-        TextField nameField = new TextField();
-        nameField.setPromptText("Component Name");
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20, 150, 10, 10));
-        grid.add(new Label("Component Type:"), 0, 0);
-        grid.add(componentTypeCombo, 1, 0);
-        grid.add(new Label("Component Name:"), 0, 1);
-        grid.add(nameField, 1, 1);
 
-        dialog.getDialogPane().setContent(grid);
-
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == confirmButtonType) {
-                if (nameField.getText().isEmpty()) {
-                    showAlert("Invalid Input", "Component name cannot be empty");
-                    return null;
-                }
-                return componentTypeCombo.getValue() + ":" + nameField.getText();
-            }
-            return null;
-        });
-
-        Optional<String> result = dialog.showAndWait();
-        result.ifPresent(typeAndName -> {
-            String[] parts = typeAndName.split(":");
-            if (parts.length == 2) {
-                String type = parts[0];
-                String name = parts[1];
-                createNewComponent(type, name);
-            }
-        });
-    }
-
-    private void createNewComponent(String type, String name) {
-        for (InterfaceComponent component : interfaceComponents) {
-            if (component.getName().equals(name)) {
-                showAlert("Duplicate Name", "A component with this name already exists");
-                return;
-            }
-        }
-
-        InterfaceComponent newComponent = new InterfaceComponent(name, type, 250, 250, 32, 32, null, null, null, 0, null, null);
-
-        switch (type) {
-            case "text":
-                newComponent.setText("New Text");
-                newComponent.setColour("0x000000");
-                List<String> availableFonts = assetLoader.getFontManager().getLoadedFontNames();
-                if (!availableFonts.isEmpty()) {
-                    String defaultFont = availableFonts.contains("p12_full") ? "p12_full" : availableFonts.get(0);
-                    newComponent.setFont(defaultFont);
-                }
-                break;
-            case "rect":
-                newComponent.setColour("0x000000");
-                newComponent.setFill(true);
-                break;
-            case "graphic":
-                newComponent.setGraphicName("miscgraphics");
-                newComponent.setGraphicIndex(0);
-                break;
-            case "inv":
-                newComponent.setDraggable(false);
-                newComponent.setInteractable(false);
-                newComponent.setUsable(false);
-                newComponent.setMargin("0,0");
-                break;
-            case "invtext":
-                newComponent.setDraggable(false);
-                newComponent.setInteractable(false);
-                newComponent.setMargin("0,0");
-                newComponent.setColour("0x000000");
-                newComponent.setFont("p12");
-                newComponent.setCenter(false);
-                newComponent.setShadowed(false);
-                break;
-            case "model":
-                newComponent.setModel("model_55_idk_head");
-                newComponent.setZoom(1200);
-                newComponent.setXan(0);
-                newComponent.setYan(200);
-                break;
-        }
-
-        interfaceComponents.add(newComponent);
-        clearRenderedComponents();
-        renderInterfaceComponents();
-        populateComponentTreeView();
-
-        selectComponentInTreeView(name);
-    }
 
     private void updateInterfacePackFilesIfNeeded(File savedInterfaceFile, List<InterfaceComponent> componentsToRegister) {
         if (serverDirectoryPath == null || serverDirectoryPath.isEmpty() || savedInterfaceFile == null || componentsToRegister == null) {
@@ -822,7 +503,7 @@ public class LostCityInterfaceEditor extends Application {
         } catch (IOException e) {
             System.err.println("Error updating interface pack files: " + e.getMessage());
             e.printStackTrace();
-            showAlert("Pack File Error", "Could not update interface.pack/interface.order: " + e.getMessage());
+            Widgets.showAlert("Pack File Error", "Could not update interface.pack/interface.order: " + e.getMessage());
         }
     }
 
@@ -1086,7 +767,7 @@ public class LostCityInterfaceEditor extends Application {
                 }
             }
         }
-        for (Node node : interfaceRenderArea.getChildren()) {
+        for (Node node : applicationState.getInterfaceRenderArea().getChildren()) {
             if (node.getId() != null &&
                     (node.getId().equals("layer_" + componentName) ||
                             node.getId().equals("graphic_" + componentName) ||
@@ -1099,7 +780,7 @@ public class LostCityInterfaceEditor extends Application {
             }
         }
 
-        for (Node node : interfaceRenderArea.getChildren()) {
+        for (Node node : applicationState.getInterfaceRenderArea().getChildren()) {
             if (node instanceof Pane && node.getId() != null && node.getId().startsWith("layer_")) {
                 Pane layerPane = (Pane) node;
                 for (Node childNode : layerPane.getChildren()) {
@@ -1156,9 +837,9 @@ public class LostCityInterfaceEditor extends Application {
                 double newX = component.getX() + deltaX;
                 double newY = component.getY() + deltaY;
 
-                if (componentPane.getParent() == interfaceRenderArea) {
-                    newX = Math.max(0, Math.min(newX, interfaceRenderArea.getWidth() - component.getWidth()));
-                    newY = Math.max(0, Math.min(newY, interfaceRenderArea.getHeight() - component.getHeight()));
+                if (componentPane.getParent() == applicationState.getInterfaceRenderArea()) {
+                    newX = Math.clamp(newX, 0, applicationState.getInterfaceRenderArea().getWidth() - component.getWidth());
+                    newY = Math.clamp(newY, 0, applicationState.getInterfaceRenderArea().getHeight() - component.getHeight());
                 }
 
                 component.setX((int) newX);
@@ -1201,8 +882,8 @@ public class LostCityInterfaceEditor extends Application {
             });
         }
 
-        else if (componentPane.getParent() == interfaceRenderArea) {
-            interfaceRenderArea.setOnMouseExited(event -> {
+        else if (componentPane.getParent() == applicationState.getInterfaceRenderArea()) {
+            applicationState.getInterfaceRenderArea().setOnMouseExited(event -> {
                 if (isDragging) {
                     isDragging = false;
                     event.consume();
@@ -1244,7 +925,7 @@ public class LostCityInterfaceEditor extends Application {
         }
         clearRenderedComponents();
 
-        interfaceComponents = InterfaceFileParser.parseInterfaceFile(filePath);
+        applicationState.setInterfaceComponents(InterfaceFileParser.parseInterfaceFile(filePath));
     }
 
     private void clearRenderedComponents() {
@@ -1253,11 +934,11 @@ public class LostCityInterfaceEditor extends Application {
         for (Node node : root.getChildren()) {
             if (node != sidebarVBox &&
                     node != propertiesSidebarVBox &&
-                    node != areaViewport &&
-                    node != areaSidebar &&
-                    node != tooltipPane &&
-                    node != backgroundCanvas &&
-                    node != interfaceRenderArea) {
+//                    node != areaViewport &&
+//                    node != areaSidebar &&
+//                    node != tooltipPane &&
+//                    node != backgroundCanvas &&
+                    node != applicationState.getInterfaceRenderArea()) {
 
                 if (node instanceof Pane) {
                     String id = node.getId();
@@ -1278,14 +959,14 @@ public class LostCityInterfaceEditor extends Application {
         root.getChildren().removeAll(nodesToRemove);
         nodesToRemove.clear();
 
-        for (Node node : interfaceRenderArea.getChildren()) {
+        for (Node node : applicationState.getInterfaceRenderArea().getChildren()) {
             if (node != sidebarVBox &&
                     node != propertiesSidebarVBox &&
-                    node != areaViewport &&
-                    node != areaSidebar &&
-                    node != tooltipPane &&
-                    node != backgroundCanvas &&
-                    node != interfaceRenderArea) {
+//                    node != areaViewport &&
+//                    node != areaSidebar &&
+//                    node != tooltipPane &&
+//                    node != backgroundCanvas &&
+                    node != applicationState.getInterfaceRenderArea()) {
 
                 if (node instanceof Pane) {
                     String id = node.getId();
@@ -1303,7 +984,7 @@ public class LostCityInterfaceEditor extends Application {
                 }
             }
         }
-        interfaceRenderArea.getChildren().removeAll(nodesToRemove);
+        applicationState.getInterfaceRenderArea().getChildren().removeAll(nodesToRemove);
 
         activeComponentName = null;
 
@@ -1500,8 +1181,8 @@ public class LostCityInterfaceEditor extends Application {
             else if ("model".equals(component.getType())) {
                 try {
                     componentPane = new Pane();
-                    componentPane.setLayoutX(component.getX() + interfaceRenderArea.getLayoutX());
-                    componentPane.setLayoutY(component.getY() + interfaceRenderArea.getLayoutY());
+                    componentPane.setLayoutX(component.getX() + applicationState.getInterfaceRenderArea().getLayoutX());
+                    componentPane.setLayoutY(component.getY() + applicationState.getInterfaceRenderArea().getLayoutY());
                     componentPane.setId("model_" + component.getName());
 
                     Model model = assetLoader.getModel(component.getModel());
@@ -1808,7 +1489,7 @@ public class LostCityInterfaceEditor extends Application {
                         root.getChildren().add(scrollbarPane);
                     }
                 } else {
-                    interfaceRenderArea.getChildren().add(scrollbarPane);
+                    applicationState.getInterfaceRenderArea().getChildren().add(scrollbarPane);
                 }
             }
 
@@ -1942,11 +1623,11 @@ public class LostCityInterfaceEditor extends Application {
                         }
                         parentPane.getChildren().add(componentPane);
                     } else {
-                        interfaceRenderArea.getChildren().add(componentPane);
+                        applicationState.getInterfaceRenderArea().getChildren().add(componentPane);
                         System.out.println("Warning: Parent layer pane not found for " + component.getName() + ", adding to root");
                     }
                 } else {
-                    interfaceRenderArea.getChildren().add(componentPane);
+                    applicationState.getInterfaceRenderArea().getChildren().add(componentPane);
                 }
                 if (component.getLayer() != null && !component.getLayer().isEmpty()) {
                     boolean parentVisible = layerVisibilityMap.getOrDefault(component.getLayer(), true);
@@ -2100,83 +1781,6 @@ public class LostCityInterfaceEditor extends Application {
     private void hideTooltip() {
         tooltipPane.setVisible(false);
         tooltipCanvas.getGraphicsContext2D().clearRect(0, 0, tooltipCanvas.getWidth(), tooltipCanvas.getHeight());
-    }
-
-    private void initializeUIComponents() {
-        try {
-            double totalW = activeLayout.getFrameWidth();
-            double totalH = activeLayout.getFrameHeight();
-
-            root = new AnchorPane();
-            backgroundCanvas = new Canvas(totalW, totalH);
-            gc = backgroundCanvas.getGraphicsContext2D();
-            gc.setFill(Color.GRAY);
-            gc.fillRect(0, 0, totalW, totalH);
-            root.getChildren().add(backgroundCanvas);
-            backgroundCanvas.toBack();
-            root.setBackground(Background.EMPTY);
-            scene = new Scene(root, totalW + 500, totalH);
-
-            tooltipPane = new Pane();
-            tooltipPane.setLayoutX(0);
-            tooltipPane.setLayoutY(0);
-            tooltipCanvas = new Canvas(300, 40);
-            tooltipPane.getChildren().add(tooltipCanvas);
-            tooltipPane.setVisible(false);
-            tooltipPane.setMouseTransparent(true);
-            tooltipPane.setViewOrder(-100);
-            root.getChildren().add(tooltipPane);
-
-            areaViewport = setupPane("viewport");
-
-            areaChatback = setupPaneWithSprite("chatback", "chatback", 0);
-            areaMapback  = setupPaneWithSprite("mapback", "mapback", 0);
-            areaSidebar  = setupPaneWithSprite("sidebar", "invback", 0);
-
-            areaBackbase1 = setupPaneWithSprite("backbase1", "backbase1", 0);
-            areaBackhmid1 = setupPaneWithSprite("backhmid1", "backhmid1", 0);
-            addIconsToPane(areaBackhmid1, "hmidIcons", 0);
-            areaBackbase2 = setupPaneWithSprite("backbase2", "backbase2", 0);
-            addIconsToPane(areaBackbase2, "baseIcons", 7);
-
-            areaBackleft1  = setupPaneWithSprite("backleft1", "backleft1", 0);
-            areaBackleft2  = setupPaneWithSprite("backleft2", "backleft2", 0);
-
-            areaBackright1 = setupPaneWithSprite("backright1", "backright1", 0);
-            areaBackright2 = setupPaneWithSprite("backright2", "backright2", 0);
-
-            areaBackvmid1  = setupPaneWithSprite("backvmid1", "backvmid1", 0);
-            areaBackvmid2  = setupPaneWithSprite("backvmid2", "backvmid2", 0);
-            areaBackvmid3  = setupPaneWithSprite("backvmid3", "backvmid3", 0);
-            areaBackhmid2  = setupPaneWithSprite("backhmid2", "backhmid2", 0);
-
-            areaBacktop1 = setupPaneWithSprite("backtop1", "backtop1", 0);
-            areaBacktop2 = setupPaneWithSprite("backtop2", "backtop2", 0);
-
-            areaCompass = setupPane("mapback");
-            compassImageView = new ImageView(assetLoader.getSpriteManager().getSprite("compass", 0));
-            compassImageView.setLayoutX(-8);
-            compassImageView.setLayoutY(-8);
-            areaCompass.getChildren().add(compassImageView);
-
-            areaMinimap = setupPane("mapback");
-            Circle minimapCircle = new Circle(100);
-            minimapCircle.setFill(Color.BLACK);
-            minimapCircle.setCenterX(100);
-            minimapCircle.setCenterY(100);
-            areaMinimap.getChildren().add(minimapCircle);
-
-            interfaceRenderArea = areaViewport;
-
-            root.getChildren().addAll(
-                    areaViewport, areaChatback, areaCompass, areaMinimap, areaMapback,
-                    areaBackbase1, areaBackbase2, areaBackhmid1,
-                    areaBackleft1, areaBackleft2, areaBackright1, areaBackright2,
-                    areaBacktop1, areaBacktop2, areaBackvmid1, areaBackvmid2, areaBackvmid3,
-                    areaBackhmid2, areaSidebar);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     private static class TextRenderInfo {

@@ -1,4 +1,4 @@
-package org.lostcityinterfaceeditor;
+package org.lostcityinterfaceeditor.models;
 
 import org.lostcityinterfaceeditor.fileUtils.InterfaceFileParser;
 

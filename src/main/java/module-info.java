@@ -17,4 +17,10 @@ module org.lostcityinterfaceeditor {
     opens org.lostcityinterfaceeditor.fileUtils to javafx.fxml;
     exports org.lostcityinterfaceeditor.baseCode;
     opens org.lostcityinterfaceeditor.baseCode to javafx.fxml;
+	exports org.lostcityinterfaceeditor.ui;
+	opens org.lostcityinterfaceeditor.ui to javafx.fxml;
+    exports org.lostcityinterfaceeditor.ui.widget;
+    opens org.lostcityinterfaceeditor.ui.widget to javafx.fxml;
+    exports org.lostcityinterfaceeditor.models;
+    opens org.lostcityinterfaceeditor.models to javafx.fxml;
 }

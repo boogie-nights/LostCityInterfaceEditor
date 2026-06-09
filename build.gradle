@@ -39,6 +39,9 @@ javafx {
 dependencies {
     implementation('org.controlsfx:controlsfx:11.1.2')
 
+    // Source: https://mvnrepository.com/artifact/com.gdetotut/jundo-framework
+    implementation("com.gdetotut:jundo-framework:1.15")
+
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitVersion}")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${junitVersion}")
 }

@@ -1,6 +1,6 @@
 package org.lostcityinterfaceeditor.fileUtils;
 
-import org.lostcityinterfaceeditor.InterfaceComponent;
+import org.lostcityinterfaceeditor.models.InterfaceComponent;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
