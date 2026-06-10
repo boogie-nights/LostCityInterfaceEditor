@@ -44,7 +44,6 @@ public class Widgets {
 		Label nameLabel = new Label(name + ":");
 		nameLabel.setMinWidth(120);
 		nameLabel.setMaxWidth(120);
-		nameLabel.setStyle("-fx-font-weight: bold;");
 
 		Label valueLabel = new Label(value != null ? value : "null");
 		valueLabel.setWrapText(true);
@@ -60,7 +59,6 @@ public class Widgets {
 		Label nameLabel = new Label(name + ":");
 		nameLabel.setMinWidth(120);
 		nameLabel.setMaxWidth(120);
-		nameLabel.setStyle("-fx-font-weight: bold;");
 
 		TextField valueField = new TextField(value != null ? value : "");
 		valueField.setPrefWidth(150);
@@ -99,7 +97,6 @@ public class Widgets {
 		Label nameLabel = new Label(name + ":");
 		nameLabel.setMinWidth(120);
 		nameLabel.setMaxWidth(120);
-		nameLabel.setStyle("-fx-font-weight: bold;");
 
 		ComboBox<String> valueComboBox = new ComboBox<>(FXCollections.observableArrayList(options));
 		valueComboBox.setPrefWidth(150);
@@ -127,7 +124,6 @@ public class Widgets {
 		Label nameLabel = new Label(name + ":");
 		nameLabel.setMinWidth(120);
 		nameLabel.setMaxWidth(120);
-		nameLabel.setStyle("-fx-font-weight: bold;");
 
 		CheckBox checkBox = new CheckBox();
 		checkBox.setSelected(value);
@@ -147,7 +143,6 @@ public class Widgets {
 		Label nameLabel = new Label(name + ":");
 		nameLabel.setMinWidth(120);
 		nameLabel.setMaxWidth(120);
-		nameLabel.setStyle("-fx-font-weight: bold;");
 
 		ColorPicker colorPicker = new ColorPicker();
 
@@ -181,7 +176,6 @@ public class Widgets {
 
 	public static void addSectionHeader(VBox container, String sectionName) {
 		Label sectionLabel = new Label(sectionName);
-		sectionLabel.setStyle("-fx-font-weight: bold; -fx-padding: 5 0 2 0;");
 		container.getChildren().add(sectionLabel);
 
 		Separator separator = new Separator();

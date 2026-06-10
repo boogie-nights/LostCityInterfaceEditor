@@ -24,6 +24,8 @@ public class ScreenBuilder implements Builder<Region> {
 		BorderPane screen = new BorderPane();
 
 		MenuBar menuBar = new MenuBar();
+		// Keep this for all the fun sections and whatnot
+		// menuBar.setStyle("-fx-border-color: red; -fx-border-width: 1;");
 
 		Menu fileMenu = new Menu("File");
 		Menu editMenu = new Menu("Edit");
@@ -32,10 +34,14 @@ public class ScreenBuilder implements Builder<Region> {
 
 		menuBar.getMenus().addAll(fileMenu, editMenu, viewMenu, helpMenu);
 
-		screen.setTop(menuBar);
+		Region componentPropertiesRegion = componentPropertiesBuilder.build();
+		componentPropertiesRegion.setPrefWidth(screen.getWidth());
+//		componentPropertiesRegion.setStyle("-fx-border-color: red; -fx-border-width: 1;");
+
 		screen.setLeft(runeScapeUiBuilder.build());
+		screen.setTop(menuBar);
 		screen.setRight(interfaceComponentsBuilder.build());
-		screen.setBottom(componentPropertiesBuilder.build());
+		screen.setBottom(componentPropertiesRegion);
 
 		return screen;
 	}
