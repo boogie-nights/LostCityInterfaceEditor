@@ -3,6 +3,7 @@ package org.lostcityinterfaceeditor.baseCode;
 import org.lostcityinterfaceeditor.LostCityInterfaceEditor;
 import org.lostcityinterfaceeditor.fileUtils.OptFileTransformer;
 import org.lostcityinterfaceeditor.loaders.TextureLoader;
+import org.lostcityinterfaceeditor.models.ApplicationState;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -29,7 +30,9 @@ public class Pix8 extends Pix2D {
         Map<String, OptFileTransformer.TextureOptions> textureOptionsMap = TextureLoader.textureOptsMap;
         OptFileTransformer.TextureOptions textureOptions = textureOptionsMap.get(name);
         BufferedImage image = null;
-        String sourcePath = LostCityInterfaceEditor.serverDirectoryPath + "/textures/";
+        
+        ApplicationState applicationState = ApplicationState.getApplicationState();
+        String sourcePath = applicationState.getServerDirectoryPath() + "/textures/";
         String imagePath = Paths.get(sourcePath, name + ".png").toString();
         try {
             InputStream inputStream = new FileInputStream(imagePath);

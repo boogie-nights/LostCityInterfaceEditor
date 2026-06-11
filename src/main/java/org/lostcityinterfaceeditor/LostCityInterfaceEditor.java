@@ -11,7 +11,6 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
-import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -28,6 +27,7 @@ import org.lostcityinterfaceeditor.helpers.LayoutHelper;
 import org.lostcityinterfaceeditor.loaders.AssetLoader;
 import org.lostcityinterfaceeditor.models.ApplicationState;
 import org.lostcityinterfaceeditor.models.InterfaceComponent;
+import org.lostcityinterfaceeditor.service.UpdatePackFilesService;
 import org.lostcityinterfaceeditor.ui.ComponentPropertiesBuilder;
 import org.lostcityinterfaceeditor.ui.InterfaceComponentsBuilder;
 import org.lostcityinterfaceeditor.ui.RuneScapeUiBuilder;
@@ -36,12 +36,7 @@ import org.lostcityinterfaceeditor.ui.widget.Widgets;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.function.Consumer;
 
 public class LostCityInterfaceEditor extends Application {
 
@@ -50,7 +45,6 @@ public class LostCityInterfaceEditor extends Application {
     private List<InterfaceComponent> interfaceComponents;
     private String activeComponentName = null;
     private Map<String, EventHandler<MouseEvent>> originalClickHandlers = new HashMap<>();
-    public static String serverDirectoryPath;
     private TreeView<String> componentTreeView;
     private VBox sidebarVBox;
     private VBox propertiesSidebarVBox;
@@ -67,6 +61,8 @@ public class LostCityInterfaceEditor extends Application {
     private Canvas tooltipCanvas;
     private Pane tooltipPane;
 
+    private UpdatePackFilesService updatePackFilesService;
+
     private AnchorPane root;
 
     public static void main(String[] args) {
@@ -75,23 +71,25 @@ public class LostCityInterfaceEditor extends Application {
 
     @Override
     public void start(Stage stage) {
-        this.applicationState = new ApplicationState();
+        this.applicationState = ApplicationState.getApplicationState();
 
         try {
-            serverDirectoryPath = AssetLoader.chooseServerDirectory(stage);
-            if (serverDirectoryPath == null) {
+            applicationState.setServerDirectoryPath(AssetLoader.chooseServerDirectory(stage));
+            if (applicationState.getServerDirectoryPath() == null) {
                 System.err.println("No server directory selected. Exiting.");
                 return;
             }
             if (!chooseLayoutVersion()) {
                 System.err.println("No layout version selected. Using standard.");
             }
-            assetLoader = new AssetLoader(serverDirectoryPath);
+            assetLoader = new AssetLoader(applicationState.getServerDirectoryPath());
             assetLoader.loadAll();
+
+            updatePackFilesService = new UpdatePackFilesService(applicationState);
 
             RuneScapeUiBuilder runeScapeUiBuilder = new RuneScapeUiBuilder(assetLoader, applicationState);
             InterfaceComponentsBuilder interfaceComponentsBuilder = new InterfaceComponentsBuilder(assetLoader, applicationState);
-            ComponentPropertiesBuilder componentPropertiesBuilder = new ComponentPropertiesBuilder(applicationState);
+            ComponentPropertiesBuilder componentPropertiesBuilder = new ComponentPropertiesBuilder(assetLoader, applicationState);
 
             Region sceneRoot = new ScreenBuilder(runeScapeUiBuilder, interfaceComponentsBuilder, componentPropertiesBuilder).build();
             Scene scene = new Scene(sceneRoot);
@@ -371,141 +369,6 @@ public class LostCityInterfaceEditor extends Application {
 
 
 
-    private void updateInterfacePackFilesIfNeeded(File savedInterfaceFile, List<InterfaceComponent> componentsToRegister) {
-        if (serverDirectoryPath == null || serverDirectoryPath.isEmpty() || savedInterfaceFile == null || componentsToRegister == null) {
-            System.out.println("Skipping pack file update: Missing server directory, saved file, or component list.");
-            return;
-        }
-
-        Path packFilePath = Paths.get(serverDirectoryPath, "pack", "interface.pack");
-        Path orderFilePath = Paths.get(serverDirectoryPath, "pack", "interface.order");
-        Path interfaceDirectoryPath = savedInterfaceFile.getParentFile().toPath();
-        Path expectedInterfaceBasePath = Paths.get(serverDirectoryPath);
-
-        if (!interfaceDirectoryPath.startsWith(expectedInterfaceBasePath)) {
-            System.out.println("Skipping pack file update: Saved file '" + savedInterfaceFile.getName() + "' is not within the expected server directory structure.");
-            return;
-        }
-
-        String interfaceFileName = savedInterfaceFile.getName();
-        if (interfaceFileName.toLowerCase().endsWith(".if")) {
-            interfaceFileName = interfaceFileName.substring(0, interfaceFileName.length() - 3);
-        }
-
-        System.out.println("Checking and potentially updating pack files for interface: " + interfaceFileName);
-
-        try {
-            int nextNumber = 0;
-            Set<String> existingEntries = new HashSet<>();
-            if (Files.exists(packFilePath)) {
-                List<String> packLines = Files.readAllLines(packFilePath);
-                for (String line : packLines) {
-                    line = line.trim();
-                    if (line.isEmpty() || !line.contains("=")) continue;
-                    try {
-                        int number = Integer.parseInt(line.substring(0, line.indexOf('=')));
-                        if (number >= nextNumber) {
-                            nextNumber = number + 1;
-                        }
-                        String entry = line.substring(line.indexOf('=') + 1);
-                        existingEntries.add(entry);
-                    } catch (NumberFormatException | StringIndexOutOfBoundsException e) {
-                        System.err.println("Warning: Skipping malformed line in interface.pack: " + line);
-                    }
-                }
-            } else {
-                Files.createDirectories(packFilePath.getParent());
-                Files.createFile(packFilePath);
-            }
-
-            if (!Files.exists(orderFilePath)) {
-                Files.createDirectories(orderFilePath.getParent());
-                Files.createFile(orderFilePath);
-            }
-
-
-            List<String> linesToAddPack = new ArrayList<>();
-            List<String> linesToAddOrder = new ArrayList<>();
-            boolean addedAny = false;
-
-            for (InterfaceComponent component : componentsToRegister) {
-                if (component == null || component.getName() == null || component.getName().trim().isEmpty()) {
-                    continue;
-                }
-
-                String targetEntry = interfaceFileName + ":" + component.getName();
-
-                if (!existingEntries.contains(targetEntry)) {
-                    String newPackEntry = nextNumber + "=" + targetEntry;
-                    linesToAddPack.add(newPackEntry);
-                    linesToAddOrder.add(String.valueOf(nextNumber));
-
-                    System.out.println("Adding to pack files: " + newPackEntry);
-                    existingEntries.add(targetEntry);
-                    nextNumber++;
-                    addedAny = true;
-                }
-            }
-
-            if (addedAny) {
-                boolean packNeedsLeadingNewline = false;
-                if (Files.exists(packFilePath) && Files.size(packFilePath) > 0) {
-                    try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(packFilePath.toFile(), "r")) {
-                        raf.seek(Files.size(packFilePath) - 1);
-                        if (raf.readByte() != '\n') {
-                            packNeedsLeadingNewline = true;
-                        }
-                    }
-                } else if (!Files.exists(packFilePath) && !linesToAddPack.isEmpty()) {
-                    packNeedsLeadingNewline = false;
-                } else if (Files.exists(packFilePath) && Files.size(packFilePath) == 0 && !linesToAddPack.isEmpty()){
-                    packNeedsLeadingNewline = false;
-                }
-
-                List<String> finalPackLines = new ArrayList<>();
-                if (packNeedsLeadingNewline && !linesToAddPack.isEmpty()) {
-                    finalPackLines.add("\n" + linesToAddPack.get(0));
-                    finalPackLines.addAll(linesToAddPack.subList(1, linesToAddPack.size()));
-                } else {
-                    finalPackLines.addAll(linesToAddPack);
-                }
-                Files.write(packFilePath, finalPackLines, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
-
-                boolean orderNeedsLeadingNewline = false;
-                if (Files.exists(orderFilePath) && Files.size(orderFilePath) > 0) {
-                    try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(orderFilePath.toFile(), "r")) {
-                        raf.seek(Files.size(orderFilePath) - 1);
-                        if (raf.readByte() != '\n') {
-                            orderNeedsLeadingNewline = true;
-                        }
-                    }
-                } else if (!Files.exists(orderFilePath) && !linesToAddOrder.isEmpty()) {
-                    orderNeedsLeadingNewline = false;
-                } else if (Files.exists(orderFilePath) && Files.size(orderFilePath) == 0 && !linesToAddOrder.isEmpty()){
-                    orderNeedsLeadingNewline = false;
-                }
-
-                List<String> finalOrderLines = new ArrayList<>();
-                if (orderNeedsLeadingNewline && !linesToAddOrder.isEmpty()) {
-                    finalOrderLines.add("\n" + linesToAddOrder.get(0));
-                    finalOrderLines.addAll(linesToAddOrder.subList(1, linesToAddOrder.size()));
-                } else {
-                    finalOrderLines.addAll(linesToAddOrder);
-                }
-
-                Files.write(orderFilePath, finalOrderLines, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
-
-
-                System.out.println("Successfully updated interface pack files.");
-            } else {
-                System.out.println("No new component entries needed for pack files.");
-            }
-        } catch (IOException e) {
-            System.err.println("Error updating interface pack files: " + e.getMessage());
-            e.printStackTrace();
-            Widgets.showAlert("Pack File Error", "Could not update interface.pack/interface.order: " + e.getMessage());
-        }
-    }
 
     private void selectComponentInTreeView(String componentName) {
         TreeItem<String> root = componentTreeView.getRoot();
@@ -531,8 +394,8 @@ public class LostCityInterfaceEditor extends Application {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open Interface File");
 
-        if (serverDirectoryPath != null && !serverDirectoryPath.isEmpty()) {
-            File initialDirectory = new File(serverDirectoryPath + "/scripts/");
+        if (applicationState.getServerDirectoryPath() != null && !applicationState.getServerDirectoryPath().isEmpty()) {
+            File initialDirectory = new File(applicationState.getServerDirectoryPath() + "/scripts/");
             if (initialDirectory.exists() && initialDirectory.isDirectory()) {
                 fileChooser.setInitialDirectory(initialDirectory);
             }
@@ -568,8 +431,8 @@ public class LostCityInterfaceEditor extends Application {
             File currentFile = new File(currentLoadedFile);
             initialDir = currentFile.getParentFile();
             fileChooser.setInitialFileName(currentFile.getName());
-        } else if (serverDirectoryPath != null && !serverDirectoryPath.isEmpty()) {
-            initialDir = new File(serverDirectoryPath);
+        } else if (applicationState.getServerDirectoryPath() != null && !applicationState.getServerDirectoryPath().isEmpty()) {
+            initialDir = new File(applicationState.getServerDirectoryPath());
         }
         if (initialDir != null && initialDir.exists() && initialDir.isDirectory()) {
             fileChooser.setInitialDirectory(initialDir);
@@ -593,7 +456,7 @@ public class LostCityInterfaceEditor extends Application {
                 InterfaceFileWriter.writeInterfaceFile(interfaceComponents, selectedFile.getAbsolutePath());
                 currentLoadedFile = selectedFile.getAbsolutePath();
 
-                updateInterfacePackFilesIfNeeded(selectedFile, interfaceComponents);
+                updatePackFilesService.updateInterfacePackFiles(selectedFile, interfaceComponents);
 
                 Alert alert = new Alert(Alert.AlertType.INFORMATION);
                 alert.setTitle("File Saved");

@@ -7,11 +7,28 @@ import java.util.List;
 
 public class ApplicationState {
 
+	private static ApplicationState applicationState;
+
+	// Step 2: Private constructor
+	private ApplicationState() {
+		// Initialization, if needed
+	}
+
+	// Step 3: Static method to get the instance
+	public static ApplicationState getApplicationState() {
+		if (applicationState == null) {
+			applicationState = new ApplicationState();
+		}
+		return applicationState;
+	}
+
 	private LayoutHelper activeLayout = LayoutHelper.Standard;
 
 	private Pane interfaceRenderArea;
 
 	private List<InterfaceComponent> interfaceComponents;
+
+	private String serverDirectoryPath;
 
 	public LayoutHelper getActiveLayout() {
 		return activeLayout;
@@ -36,4 +53,12 @@ public class ApplicationState {
 	public void setInterfaceComponents(List<InterfaceComponent> interfaceComponents) {
 		this.interfaceComponents = interfaceComponents;
 	}
+
+    public String getServerDirectoryPath() {
+        return serverDirectoryPath;
+    }
+
+    public void setServerDirectoryPath(String serverDirectoryPath) {
+        this.serverDirectoryPath = serverDirectoryPath;
+    }
 }
