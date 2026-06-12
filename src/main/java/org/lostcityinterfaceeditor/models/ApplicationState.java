@@ -7,14 +7,11 @@ import java.util.List;
 
 public class ApplicationState {
 
+	// I hate this design, really gonna have to do better. Smdh.
 	private static ApplicationState applicationState;
 
-	// Step 2: Private constructor
-	private ApplicationState() {
-		// Initialization, if needed
-	}
+	private ApplicationState() {}
 
-	// Step 3: Static method to get the instance
 	public static ApplicationState getApplicationState() {
 		if (applicationState == null) {
 			applicationState = new ApplicationState();
@@ -22,13 +19,19 @@ public class ApplicationState {
 		return applicationState;
 	}
 
+	// these three feel related...
 	private LayoutHelper activeLayout = LayoutHelper.Standard;
 
 	private Pane interfaceRenderArea;
 
 	private List<InterfaceComponent> interfaceComponents;
 
+	// This guy is definitely different
 	private String serverDirectoryPath;
+
+
+
+
 
 	public LayoutHelper getActiveLayout() {
 		return activeLayout;

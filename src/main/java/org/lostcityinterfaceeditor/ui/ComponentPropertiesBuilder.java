@@ -31,16 +31,12 @@ public class ComponentPropertiesBuilder implements Builder<Region> {
 
 	@Override
 	public Region build() {
-
 		VBox root = new VBox();
-
-		Label componentPropertiesLabel = new Label("Component Properties");
-
-		root.getChildren().addAll(addButtons(root), createPropertiesSection(null));
-
+		root.getChildren().addAll(createPropertiesSection(null));
 		return root;
 	}
 
+	// We can add these back after the refactor. Let's just get 1:1 working.
 	private Node addButtons(Region root) {
 		HBox hBox = new HBox();
 
