@@ -8,27 +8,21 @@ import javafx.geometry.Point2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.Line;
-import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import org.lostcityinterfaceeditor.baseCode.Model;
-import org.lostcityinterfaceeditor.baseCode.Pix3D;
 import org.lostcityinterfaceeditor.fileUtils.InterfaceFileParser;
 import org.lostcityinterfaceeditor.fileUtils.InterfaceFileWriter;
 import org.lostcityinterfaceeditor.helpers.FontHelper;
 import org.lostcityinterfaceeditor.helpers.LayoutHelper;
-import org.lostcityinterfaceeditor.helpers.StringUtils;
 import org.lostcityinterfaceeditor.loaders.AssetLoader;
 import org.lostcityinterfaceeditor.models.ApplicationState;
 import org.lostcityinterfaceeditor.models.InterfaceComponent;
 import org.lostcityinterfaceeditor.service.UpdatePackFilesService;
+import org.lostcityinterfaceeditor.service.componentrenderer.TextRenderInfo;
 import org.lostcityinterfaceeditor.ui.ComponentPropertiesBuilder;
 import org.lostcityinterfaceeditor.ui.InterfaceComponentsBuilder;
 import org.lostcityinterfaceeditor.ui.RuneScapeUiBuilder;
@@ -858,7 +852,6 @@ public class LostCityInterfaceEditor extends Application {
     }
 
     private void renderInterfaceComponents() {
-
     }
 
     private void updateMouseTransparency(Pane pane, InterfaceComponent component) {

@@ -17,6 +17,7 @@ import org.lostcityinterfaceeditor.baseCode.Model;
 import org.lostcityinterfaceeditor.baseCode.Pix3D;
 import org.lostcityinterfaceeditor.helpers.FontHelper;
 import org.lostcityinterfaceeditor.helpers.StringUtils;
+import org.lostcityinterfaceeditor.loaders.AssetLoader;
 import org.lostcityinterfaceeditor.models.ApplicationState;
 import org.lostcityinterfaceeditor.models.InterfaceComponent;
 
@@ -24,13 +25,16 @@ import java.util.*;
 
 public class ComponentRenderer {
 
-	Map<String, InterfaceComponent> componentMap = new HashMap<>();
-	Map<String, Pane> componentPaneMap = new HashMap<>();
-	Map<String, List<String>> layerChildrenMap = new HashMap<>();
-	Map<String, Boolean> layerVisibilityMap = new HashMap<>();
+	private final AssetLoader assetLoader;
+
+	private Map<String, InterfaceComponent> componentMap = new HashMap<>();
+	private Map<String, Pane> componentPaneMap = new HashMap<>();
+	private Map<String, List<String>> layerChildrenMap = new HashMap<>();
+	private Map<String, Boolean> layerVisibilityMap = new HashMap<>();
 	private List<InterfaceComponent> interfaceComponents;
 
-	public ComponentRenderer(List<InterfaceComponent> interfaceComponents) {
+	public ComponentRenderer(AssetLoader assetLoader, List<InterfaceComponent> interfaceComponents) {
+		this.assetLoader = assetLoader;
 		this.interfaceComponents = interfaceComponents;
 	}
 
@@ -55,52 +59,59 @@ public class ComponentRenderer {
 //		});
 
 		for (InterfaceComponent component : interfaceComponents) {
-			if (component != null) {
-				componentMap.put(component.getName(), component);
-
-				if ("layer".equals(component.getType())) {
-					layerVisibilityMap.put(component.getName(), !component.isHide());
-					layerChildrenMap.put(component.getName(), new ArrayList<>());
-				}
-
-				if (component.getLayer() != null && !component.getLayer().isEmpty()) {
-					layerChildrenMap.computeIfAbsent(component.getLayer(), k -> new ArrayList<>())
-							.add(component.getName());
-				}
+			if (component == null) {
+				continue;
 			}
+
+			componentMap.put(component.getName(), component);
+
+			if ("layer".equals(component.getType())) {
+				layerVisibilityMap.put(component.getName(), !component.isHide());
+				layerChildrenMap.put(component.getName(), new ArrayList<>());
+			}
+
+			if (component.getLayer() == null || component.getLayer().isEmpty()) {
+				continue;
+			}
+
+			layerChildrenMap.computeIfAbsent(component.getLayer(), k -> new ArrayList<>())
+					.add(component.getName());
 		}
 
 		for (InterfaceComponent component : interfaceComponents) {
-			if (component == null)
+			if (component == null || component.getLayer() == null || component.getLayer().isEmpty()) {
 				continue;
+			}
 
-			InterfaceComponent parentComponent = null;
+			InterfaceComponent parentComponent = componentMap.get(component.getLayer());
+
+			if (parentComponent == null) {
+				System.err.println("Warning: Layer reference '" + component.getLayer() +
+						"' not found for component '" + component.getName() + "'");
+				continue;
+			}
+
 			double x = component.getX();
 			double y = component.getY();
-			if (component.getLayer() != null && !component.getLayer().isEmpty()) {
-				parentComponent = componentMap.get(component.getLayer());
-				if (parentComponent != null) {
-					x += parentComponent.getX();
-					y += parentComponent.getY();
-				} else {
-					System.err.println("Warning: Layer reference '" + component.getLayer() +
-							"' not found for component '" + component.getName() + "'");
-				}
-			}
+
+			x += parentComponent.getX();
+			y += parentComponent.getY();
+
+			RenderableJagComponent componentToRender = new RenderableJagComponent(component, x, y);
 
 			Pane componentPane = null;
 
 			if ("layer".equals(component.getType())) {
-				componentPane = addComponentLayer(component, x, y);
+				componentPane = addComponentLayer(componentToRender);
 			}
 			else if ("graphic".equals(component.getType())) {
-				componentPane = addComponentGraphic(component);
+				componentPane = addComponentGraphic(componentToRender);
 			}
 			else if ("rect".equals(component.getType())) {
-				componentPane = addComponentRect(component);
+				componentPane = addComponentRect(componentToRender);
 			}
 			else if ("model".equals(component.getType())) {
-				componentPane = addComponentModel(component);
+				componentPane = addComponentModel(componentToRender);
 			}
 			else if ("text".equals(component.getType())) {
 				try {
@@ -225,9 +236,9 @@ public class ComponentRenderer {
 					e.printStackTrace();
 				}
 			} else if ("inv".equals(component.getType())) {
-				componentPane = addComponentInv(component, x, y);
+				componentPane = addComponentInv(componentToRender);
 			} else if ("invtext".equals(component.getType())) {
-				componentPane = addComponentInvText(component);
+				componentPane = addComponentInvText(componentToRender);
 			}
 			if (componentPane != null && component.getScroll() > 0) {
 				Pane scrollbarPane = new Pane();
@@ -471,27 +482,27 @@ public class ComponentRenderer {
 		}
 	}
 
-	private Pane addComponentModel(InterfaceComponent component) {
+	private Pane addComponentModel(RenderableJagComponent renderableComponent) {
 
 		Pane componentPane = new Pane();
-		componentPane.setLayoutX(component.getX() + ApplicationState.getApplicationState().getInterfaceRenderArea().getLayoutX());
-		componentPane.setLayoutY(component.getY() + ApplicationState.getApplicationState().getInterfaceRenderArea().getLayoutY());
-		componentPane.setId("model_" + component.getName());
+		componentPane.setLayoutX(renderableComponent.relativeX + ApplicationState.getApplicationState().getInterfaceRenderArea().getLayoutX());
+		componentPane.setLayoutY(renderableComponent.relativeY + ApplicationState.getApplicationState().getInterfaceRenderArea().getLayoutY());
+		componentPane.setId("model_" + renderableComponent.component.getName());
 
-		Model model = assetLoader.getModel(component.getModel());
+		Model model = assetLoader.getModel(renderableComponent.component.getModel());
 		if (model == null) {
-			System.out.println("No model found for: " + component.getModel());
+			System.out.println("No model found for: " + renderableComponent.component.getModel());
 			return componentPane;
 		}
 
 		if (model.faceColorA == null) {
 			model.calculateNormals(64, 768, -50, -10, -50, true);
 		}
-		int compWidth = component.getWidth();
-		int compHeight = component.getHeight();
+		int compWidth = renderableComponent.component.getWidth();
+		int compHeight = renderableComponent.component.getHeight();
 
 		if (compWidth <= 0 || compHeight <= 0) {
-			System.err.println("Skipping model component with invalid dimensions: " + component.getName());
+			System.err.println("Skipping model component with invalid dimensions: " + renderableComponent.component.getName());
 			return componentPane;
 		}
 
@@ -521,10 +532,10 @@ public class ComponentRenderer {
 
 		Arrays.fill(pixelBuffer, 0);
 
-		int eyeY = Pix3D.sinTable[component.getXan()] * component.getZoom() >> 16;
-		int eyeZ = Pix3D.cosTable[component.getXan()] * component.getZoom() >> 16;
+		int eyeY = Pix3D.sinTable[renderableComponent.component.getXan()] * renderableComponent.component.getZoom() >> 16;
+		int eyeZ = Pix3D.cosTable[renderableComponent.component.getXan()] * renderableComponent.component.getZoom() >> 16;
 
-		model.drawSimple(0, component.getYan(), 0, component.getXan(), 0, eyeY, eyeZ);
+		model.drawSimple(0, renderableComponent.component.getYan(), 0, renderableComponent.component.getXan(), 0, eyeY, eyeZ);
 
 		Pix3D.centerW3D = originalCenterW;
 		Pix3D.centerH3D = originalCenterH;
@@ -553,35 +564,35 @@ public class ComponentRenderer {
 		return componentPane;
 	}
 
-	private static Pane addComponentInvText(InterfaceComponent component) {
+	private static Pane addComponentInvText(RenderableJagComponent renderableComponent) {
 		Pane componentPane = new Pane();
-		componentPane.setLayoutX(component.getX());
-		componentPane.setLayoutY(component.getY());
-		componentPane.setPrefWidth(component.getWidth());
-		componentPane.setPrefHeight(component.getHeight());
-		componentPane.setId("invtext_" + component.getName());
+		componentPane.setLayoutX(renderableComponent.relativeX);
+		componentPane.setLayoutY(renderableComponent.relativeY);
+		componentPane.setPrefWidth(renderableComponent.component.getWidth());
+		componentPane.setPrefHeight(renderableComponent.component.getHeight());
+		componentPane.setId("invtext_" + renderableComponent.component.getName());
 		return componentPane;
 	}
 
-	private static Pane addComponentInv(InterfaceComponent component) {
+	private static Pane addComponentInv(RenderableJagComponent renderableComponent) {
 		Pane componentPane = new Pane();
-		componentPane.setLayoutX(component.getX());
-		componentPane.setLayoutY(component.getY());
-		componentPane.setPrefWidth(component.getWidth());
-		componentPane.setPrefHeight(component.getHeight());
-		componentPane.setId("inv_" + component.getName());
+		componentPane.setLayoutX(renderableComponent.relativeX);
+		componentPane.setLayoutY(renderableComponent.relativeY);
+		componentPane.setPrefWidth(renderableComponent.component.getWidth());
+		componentPane.setPrefHeight(renderableComponent.component.getHeight());
+		componentPane.setId("inv_" + renderableComponent.component.getName());
 		return componentPane;
 	}
 
-	private static Pane addComponentRect(InterfaceComponent component) {
+	private static Pane addComponentRect(RenderableJagComponent renderableComponent) {
 		Pane componentPane = new Pane();
-		componentPane.setLayoutX(component.getX());
-		componentPane.setLayoutY(component.getY());
-		componentPane.setId("rect_" + component.getName());
+		componentPane.setLayoutX(renderableComponent.relativeX);
+		componentPane.setLayoutY(renderableComponent.relativeY);
+		componentPane.setId("rect_" + renderableComponent.component.getName());
 
-		Rectangle rectangle = new Rectangle(component.getWidth(), component.getHeight());
+		Rectangle rectangle = new Rectangle(renderableComponent.component.getWidth(), renderableComponent.component.getHeight());
 
-		String colorStr = component.getColour();
+		String colorStr = renderableComponent.component.getColour();
 		if (colorStr != null && colorStr.startsWith("0x")) {
 			int colorValue = Integer.parseInt(colorStr.substring(2), 16);
 			// Spin this fun into it's own method in ColorUtils or something
@@ -589,14 +600,14 @@ public class ComponentRenderer {
 			int green = (colorValue >> 8) & 0xFF;
 			int blue = colorValue & 0xFF;
 			Color color = Color.rgb(red, green, blue);
-			if (component.isFill()) {
+			if (renderableComponent.component.isFill()) {
 				rectangle.setFill(color);
 			} else {
 				rectangle.setStroke(color);
 				rectangle.setStrokeWidth(1);
 			}
 		} else {
-			if (component.isFill()) {
+			if (renderableComponent.component.isFill()) {
 				rectangle.setFill(Color.BLACK);
 			} else {
 				rectangle.setFill(Color.TRANSPARENT);
@@ -608,30 +619,30 @@ public class ComponentRenderer {
 		return componentPane;
 	}
 
-	private Pane addComponentGraphic(InterfaceComponent component) {
+	private Pane addComponentGraphic(RenderableJagComponent renderableComponent) {
 		Pane componentPane = new Pane();
-		componentPane.setLayoutX(component.getX());
-		componentPane.setLayoutY(component.getY());
-		componentPane.setPrefWidth(component.getWidth() > 0 ? component.getWidth() : 50);
-		componentPane.setPrefHeight(component.getHeight() > 0 ? component.getHeight() : 50);
-		componentPane.setId("graphic_" + component.getName());
+		componentPane.setLayoutX(renderableComponent.relativeX);
+		componentPane.setLayoutY(renderableComponent.relativeY);
+		componentPane.setPrefWidth(renderableComponent.component.getWidth() > 0 ? renderableComponent.component.getWidth() : 50);
+		componentPane.setPrefHeight(renderableComponent.component.getHeight() > 0 ? renderableComponent.component.getHeight() : 50);
+		componentPane.setId("graphic_" + renderableComponent.component.getName());
 
 		ImageView imageView = new ImageView();
 
-		if (component.getGraphicName() != null && !component.getGraphicName().isEmpty()) {
-			WritableImage sprite = assetLoader.getSpriteManager().getSprite(component.getGraphicName(), component.getGraphicIndex());
+		if (renderableComponent.component.getGraphicName() != null && !renderableComponent.component.getGraphicName().isEmpty()) {
+			WritableImage sprite = assetLoader.getSpriteManager().getSprite(renderableComponent.component.getGraphicName(), renderableComponent.component.getGraphicIndex());
 			imageView.setImage(sprite);
 		}
 		componentPane.getChildren().add(imageView);
 
-		if (component.getActiveGraphicName() != null && !component.getActiveGraphicName().isEmpty()) {
-			final String componentName = component.getName();
+		if (renderableComponent.component.getActiveGraphicName() != null && !renderableComponent.component.getActiveGraphicName().isEmpty()) {
+			final String componentName = renderableComponent.component.getName();
 
-			final String activeGraphicName = component.getActiveGraphicName();
-			final int activeGraphicIndex = component.getActiveGraphicIndex();
+			final String activeGraphicName = renderableComponent.component.getActiveGraphicName();
+			final int activeGraphicIndex = renderableComponent.component.getActiveGraphicIndex();
 
-			double width = component.getWidth() > 0 ? component.getWidth() : (imageView.getImage() != null ? imageView.getImage().getWidth() : 50);
-			double height = component.getHeight() > 0 ? component.getHeight() : (imageView.getImage() != null ? imageView.getImage().getHeight() : 50);
+			double width = renderableComponent.component.getWidth() > 0 ? renderableComponent.component.getWidth() : (imageView.getImage() != null ? imageView.getImage().getWidth() : 50);
+			double height = renderableComponent.component.getHeight() > 0 ? renderableComponent.component.getHeight() : (imageView.getImage() != null ? imageView.getImage().getHeight() : 50);
 
 			Rectangle clickCaptureRect = new Rectangle(width, height);
 			clickCaptureRect.setFill(Color.TRANSPARENT);
@@ -680,26 +691,36 @@ public class ComponentRenderer {
 		return componentPane;
 	}
 
-	private Pane addComponentLayer(InterfaceComponent component, double x, double y) {
+	private Pane addComponentLayer(RenderableJagComponent renderableComponent) {
 		Pane componentPane = new Pane();
-		componentPane.setLayoutX(component.getX());
-		componentPane.setLayoutY(component.getY());
-		componentPane.setPrefWidth(component.getWidth());
-		componentPane.setPrefHeight(component.getHeight());
-		componentPane.setId("layer_" + component.getName());
+		componentPane.setLayoutX(renderableComponent.relativeX);
+		componentPane.setLayoutY(renderableComponent.relativeY);
+		componentPane.setPrefWidth(renderableComponent.component.getWidth());
+		componentPane.setPrefHeight(renderableComponent.component.getHeight());
+		componentPane.setId("layer_" + renderableComponent.component.getName());
 
-		Rectangle clipRect = new Rectangle(component.getWidth(), component.getHeight());
+		Rectangle clipRect = new Rectangle(renderableComponent.component.getWidth(), renderableComponent.component.getHeight());
 		componentPane.setClip(clipRect);
 
-		Rectangle eventCapture = new Rectangle(component.getWidth(), component.getHeight());
+		Rectangle eventCapture = new Rectangle(renderableComponent.component.getWidth(), renderableComponent.component.getHeight());
 		eventCapture.setFill(Color.TRANSPARENT);
 		componentPane.getChildren().add(eventCapture);
 
-		boolean isVisible = layerVisibilityMap.getOrDefault(component.getName(), true);
+		boolean isVisible = layerVisibilityMap.getOrDefault(renderableComponent.component.getName(), true);
 		componentPane.setVisible(isVisible);
 		componentPane.setPickOnBounds(true);
 		return componentPane;
 	}
 
+	private class RenderableJagComponent {
+		InterfaceComponent component;
+		double relativeX;
+		double relativeY;
 
+		public RenderableJagComponent(InterfaceComponent component, double xOffset, double yOffset) {
+			this.component = component;
+			this.relativeX = component.getX() + xOffset;
+			this.relativeY = component.getY() + yOffset;
+		}
+	}
 }
