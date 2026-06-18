@@ -2,9 +2,11 @@ package org.lostcityinterfaceeditor.ui;
 
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Region;
 import javafx.util.Builder;
+import org.lostcityinterfaceeditor.LostCityInterfaceEditor;
 
 public class ScreenBuilder implements Builder<Region> {
 
@@ -12,10 +14,13 @@ public class ScreenBuilder implements Builder<Region> {
 	private final InterfaceComponentsBuilder interfaceComponentsBuilder;
 	private final ComponentPropertiesBuilder componentPropertiesBuilder;
 
-	public ScreenBuilder(RuneScapeUiBuilder runeScapeUiBuilder, InterfaceComponentsBuilder interfaceComponentsBuilder, ComponentPropertiesBuilder componentPropertiesBuilder) {
+	private final LostCityInterfaceEditor lostCityInterfaceEditor;
+
+	public ScreenBuilder(LostCityInterfaceEditor editor, RuneScapeUiBuilder runeScapeUiBuilder, InterfaceComponentsBuilder interfaceComponentsBuilder, ComponentPropertiesBuilder componentPropertiesBuilder) {
 		this.runeScapeUiBuilder = runeScapeUiBuilder;
 		this.interfaceComponentsBuilder = interfaceComponentsBuilder;
 		this.componentPropertiesBuilder = componentPropertiesBuilder;
+		this.lostCityInterfaceEditor = editor;
 	}
 
 	@Override
@@ -28,6 +33,10 @@ public class ScreenBuilder implements Builder<Region> {
 		// menuBar.setStyle("-fx-border-color: red; -fx-border-width: 1;");
 
 		Menu fileMenu = new Menu("File");
+		MenuItem openMenuItem = new MenuItem("Open Interface");
+		openMenuItem.setOnAction(e -> lostCityInterfaceEditor.loadInterfaceFile());
+		fileMenu.getItems().add(openMenuItem);
+
 		Menu editMenu = new Menu("Edit");
 		Menu viewMenu = new Menu("View");
 		Menu helpMenu = new Menu("Help");

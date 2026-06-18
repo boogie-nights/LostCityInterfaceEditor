@@ -2,7 +2,6 @@ package org.lostcityinterfaceeditor;
 
 import javafx.application.Application;
 import javafx.collections.FXCollections;
-import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.scene.Node;
@@ -10,19 +9,17 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.lostcityinterfaceeditor.fileUtils.InterfaceFileParser;
 import org.lostcityinterfaceeditor.fileUtils.InterfaceFileWriter;
-import org.lostcityinterfaceeditor.helpers.FontHelper;
 import org.lostcityinterfaceeditor.helpers.LayoutHelper;
 import org.lostcityinterfaceeditor.loaders.AssetLoader;
 import org.lostcityinterfaceeditor.models.ApplicationState;
 import org.lostcityinterfaceeditor.models.InterfaceComponent;
 import org.lostcityinterfaceeditor.service.UpdatePackFilesService;
-import org.lostcityinterfaceeditor.service.componentrenderer.TextRenderInfo;
+import org.lostcityinterfaceeditor.service.componentrenderer.ComponentRenderer;
 import org.lostcityinterfaceeditor.ui.ComponentPropertiesBuilder;
 import org.lostcityinterfaceeditor.ui.InterfaceComponentsBuilder;
 import org.lostcityinterfaceeditor.ui.RuneScapeUiBuilder;
@@ -35,11 +32,9 @@ import java.util.*;
 
 public class LostCityInterfaceEditor extends Application {
 
-    private Map<String, Double> originalViewOrderMap = new HashMap<>();
 
     private List<InterfaceComponent> interfaceComponents;
     private String activeComponentName = null;
-    private Map<String, EventHandler<MouseEvent>> originalClickHandlers = new HashMap<>();
     private TreeView<String> componentTreeView;
     private VBox sidebarVBox;
     private VBox propertiesSidebarVBox;
@@ -49,16 +44,16 @@ public class LostCityInterfaceEditor extends Application {
     private Pane currentlyDraggablePane = null;
     private InterfaceComponent currentlyDraggableComponent = null;
     private String currentLoadedFile;
-    private Map<String, TextRenderInfo> textRenderInfoMap = new HashMap<>();
     private AssetLoader assetLoader;
     private ScrollPane propertiesScrollPane;
     private ApplicationState applicationState;
-    private Canvas tooltipCanvas;
-    private Pane tooltipPane;
+
+    private ComponentRenderer componentRenderer;
+
 
     private UpdatePackFilesService updatePackFilesService;
 
-    private AnchorPane root;
+    private AnchorPane root = new AnchorPane();
 
     public static void main(String[] args) {
         launch(args);
@@ -86,7 +81,9 @@ public class LostCityInterfaceEditor extends Application {
             InterfaceComponentsBuilder interfaceComponentsBuilder = new InterfaceComponentsBuilder(assetLoader, applicationState);
             ComponentPropertiesBuilder componentPropertiesBuilder = new ComponentPropertiesBuilder(assetLoader, applicationState);
 
-            Region sceneRoot = new ScreenBuilder(runeScapeUiBuilder, interfaceComponentsBuilder, componentPropertiesBuilder).build();
+            componentRenderer = new ComponentRenderer(assetLoader, interfaceComponents);
+
+            Region sceneRoot = new ScreenBuilder(this, runeScapeUiBuilder, interfaceComponentsBuilder, componentPropertiesBuilder).build();
             Scene scene = new Scene(sceneRoot);
 
             scene.getStylesheets().add("https://raw.githubusercontent.com/antoniopelusi/JavaFX-Dark-Theme/main/style.css");
@@ -307,9 +304,9 @@ public class LostCityInterfaceEditor extends Application {
 //        addComponentButton.setMaxWidth(Double.MAX_VALUE);
 //        addComponentButton.setOnAction(e -> showAddComponentDialog());
 
-        Button loadInterfaceButton = new Button("Load Interface");
-        loadInterfaceButton.setMaxWidth(Double.MAX_VALUE);
-        loadInterfaceButton.setOnAction(e -> loadInterfaceFile());
+//        Button loadInterfaceButton = new Button("Load Interface");
+//        loadInterfaceButton.setMaxWidth(Double.MAX_VALUE);
+//        loadInterfaceButton.setOnAction(e -> loadInterfaceFile());
 
         Button saveInterfaceButton = new Button("Save Interface");
         saveInterfaceButton.setMaxWidth(Double.MAX_VALUE);
@@ -352,7 +349,7 @@ public class LostCityInterfaceEditor extends Application {
         });
 
         VBox buttonBox = new VBox(5);
-        buttonBox.getChildren().addAll(loadInterfaceButton, saveInterfaceButton, spriteEditorButton, interfaceDisplayLocation);
+        buttonBox.getChildren().addAll(saveInterfaceButton, spriteEditorButton, interfaceDisplayLocation);
         VBox.setMargin(buttonBox, new Insets(10, 0, 0, 0));
 
         sidebarVBox.getChildren().addAll(componentTreeView, selectionHintLabel, buttonBox);
@@ -361,9 +358,6 @@ public class LostCityInterfaceEditor extends Application {
         AnchorPane.setBottomAnchor(sidebarVBox, 0.0);
         AnchorPane.setRightAnchor(sidebarVBox, 0.0);
     }
-
-
-
 
     private void selectComponentInTreeView(String componentName) {
         TreeItem<String> root = componentTreeView.getRoot();
@@ -385,7 +379,7 @@ public class LostCityInterfaceEditor extends Application {
         return false;
     }
 
-    private void loadInterfaceFile() {
+    public void loadInterfaceFile() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open Interface File");
 
@@ -846,12 +840,14 @@ public class LostCityInterfaceEditor extends Application {
 
         activeComponentName = null;
 
-        originalClickHandlers.clear();
-        originalViewOrderMap.clear();
-        textRenderInfoMap.clear();
+        // TODO: Gonna need to remember this exists.
+//        originalClickHandlers.clear();
+//        originalViewOrderMap.clear();
+//        textRenderInfoMap.clear();
     }
 
     private void renderInterfaceComponents() {
+        componentRenderer.renderComponents();
     }
 
     private void updateMouseTransparency(Pane pane, InterfaceComponent component) {
@@ -892,99 +888,5 @@ public class LostCityInterfaceEditor extends Application {
         pane.setOnMouseDragged(null);
         pane.setOnMouseReleased(null);
         updateMouseTransparency(pane, component);
-    }
-
-
-
-    private void toggleLayerVisibility(
-            String layerName,
-            boolean visible,
-            Map<String, InterfaceComponent> componentMap,
-            Map<String, Pane> componentPaneMap,
-            Map<String, Boolean> layerVisibilityMap,
-            Map<String, List<String>> layerChildrenMap) {
-
-        layerVisibilityMap.put(layerName, visible);
-
-        Pane layerPane = componentPaneMap.get(layerName);
-        if (layerPane != null) {
-            layerPane.setVisible(visible);
-
-            layerPane.setMouseTransparent(false);
-
-            if (visible) {
-                if (!originalViewOrderMap.containsKey(layerName)) {
-                    originalViewOrderMap.put(layerName, layerPane.getViewOrder());
-                }
-
-                layerPane.setViewOrder(-10.0);
-                layerPane.toFront();
-            } else {
-                Double originalViewOrder = originalViewOrderMap.getOrDefault(layerName, 0.0);
-                layerPane.setViewOrder(originalViewOrder);
-            }
-        }
-
-        List<String> children = layerChildrenMap.get(layerName);
-        if (children != null) {
-            for (String childName : children) {
-                InterfaceComponent childComponent = componentMap.get(childName);
-                Pane childPane = componentPaneMap.get(childName);
-
-                if (childComponent != null && childPane != null) {
-                    childPane.setVisible(visible);
-                    if ("layer".equals(childComponent.getType())) {
-                        toggleLayerVisibility(childName, visible, componentMap, componentPaneMap,
-                                layerVisibilityMap, layerChildrenMap);
-                    } else {
-                        childPane.setVisible(visible);
-                        if (visible) {
-                            if (!originalViewOrderMap.containsKey(childName)) {
-                                originalViewOrderMap.put(childName, childPane.getViewOrder());
-                            }
-                            childPane.setViewOrder(-9.0);
-                            if (childPane.getParent() instanceof Pane) {
-                                Pane parent = (Pane) childPane.getParent();
-                                parent.getChildren().remove(childPane);
-                                parent.getChildren().add(childPane);
-                            }
-                        } else {
-                            Double originalViewOrder = originalViewOrderMap.getOrDefault(childName, 0.0);
-                            childPane.setViewOrder(originalViewOrder);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private void showTooltip(String text) {
-        if (text == null || text.isEmpty()) return;
-        tooltipCanvas.getGraphicsContext2D().clearRect(0, 0, tooltipCanvas.getWidth(), tooltipCanvas.getHeight());
-        String fontName = "b12_full";
-        FontHelper font = assetLoader.getFontManager().getFont(fontName);
-
-        if (font == null) {
-            fontName = "b12";
-            font = assetLoader.getFontManager().getFont(fontName);
-        }
-        double width = Math.max(100,  font.getTextWidth(text) + 10);
-        if (width > tooltipCanvas.getWidth()) {
-            tooltipCanvas.setWidth(width);
-        }
-        assetLoader.getFontManager().drawTaggableText(
-                tooltipCanvas.getGraphicsContext2D(),
-                fontName,
-                text,
-                12.0, 26.0,
-                16777215,
-                true
-        );
-        tooltipPane.setVisible(true);
-    }
-
-    private void hideTooltip() {
-        tooltipPane.setVisible(false);
-        tooltipCanvas.getGraphicsContext2D().clearRect(0, 0, tooltipCanvas.getWidth(), tooltipCanvas.getHeight());
     }
 }

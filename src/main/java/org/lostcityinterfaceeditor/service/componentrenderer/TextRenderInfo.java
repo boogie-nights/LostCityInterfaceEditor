@@ -6,9 +6,9 @@ import java.util.ArrayList;
 
 public class TextRenderInfo {
 
-	private ArrayList<String> lines = new ArrayList<>();
-	private ArrayList<Integer> lineStartXPositions = new ArrayList<>();
-	private ArrayList<Double> lineYPositions = new ArrayList<>();
+	private ArrayList<String> lines;
+	private ArrayList<Integer> lineStartXPositions;
+	private ArrayList<Double> lineYPositions;
 	private FontHelper font;
 	private String text;
 	private boolean shadowed;
@@ -25,5 +25,37 @@ public class TextRenderInfo {
 		this.shadowed = shadowed;
 		this.centered = centered;
 		this.containerWidth = containerWidth;
+	}
+
+	public void addLines(String string) {
+		lines.add(string);
+	}
+
+	public void addLineStartXPosition(int startX) {
+		lineStartXPositions.add(startX);
+	}
+
+	public void addLineYPosition(double yPosition) {
+		lineYPositions.add(yPosition);
+	}
+
+	public ArrayList<String> getLines() {
+		return lines;
+	}
+
+	public ArrayList<Integer> getLineStartXPositions() {
+		return lineStartXPositions;
+	}
+
+	public ArrayList<Double> getLineYPositions() {
+		return lineYPositions;
+	}
+
+	public FontHelper getFont() {
+		return font;
+	}
+
+	public boolean isShadowed() {
+		return shadowed;
 	}
 }

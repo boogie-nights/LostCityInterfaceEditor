@@ -1,7 +1,6 @@
 package org.lostcityinterfaceeditor.service.componentrenderer;
 
 import javafx.event.EventHandler;
-import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.ImageView;
@@ -12,7 +11,6 @@ import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
-import org.lostcityinterfaceeditor.LostCityInterfaceEditor;
 import org.lostcityinterfaceeditor.baseCode.Model;
 import org.lostcityinterfaceeditor.baseCode.Pix3D;
 import org.lostcityinterfaceeditor.helpers.FontHelper;
@@ -32,6 +30,12 @@ public class ComponentRenderer {
 	private Map<String, List<String>> layerChildrenMap = new HashMap<>();
 	private Map<String, Boolean> layerVisibilityMap = new HashMap<>();
 	private List<InterfaceComponent> interfaceComponents;
+	private Map<String, TextRenderInfo> textRenderInfoMap = new HashMap<>();
+	private Canvas tooltipCanvas;
+	private Pane tooltipPane;
+	private Map<String, Double> originalViewOrderMap = new HashMap<>();
+	private Map<String, EventHandler<MouseEvent>> originalClickHandlers = new HashMap<>();
+
 
 	public ComponentRenderer(AssetLoader assetLoader, List<InterfaceComponent> interfaceComponents) {
 		this.assetLoader = assetLoader;
@@ -39,6 +43,7 @@ public class ComponentRenderer {
 	}
 
 	public void renderComponents() {
+		interfaceComponents = ApplicationState.getApplicationState().getInterfaceComponents();
 		//hideTooltip();
 
 // Move to UI Builder for component
@@ -70,7 +75,7 @@ public class ComponentRenderer {
 				layerChildrenMap.put(component.getName(), new ArrayList<>());
 			}
 
-			if (component.getLayer() == null || component.getLayer().isEmpty()) {
+			if (component.getLayer() != null && !component.getLayer().isEmpty()) {
 				continue;
 			}
 
@@ -79,23 +84,24 @@ public class ComponentRenderer {
 		}
 
 		for (InterfaceComponent component : interfaceComponents) {
-			if (component == null || component.getLayer() == null || component.getLayer().isEmpty()) {
-				continue;
-			}
-
-			InterfaceComponent parentComponent = componentMap.get(component.getLayer());
-
-			if (parentComponent == null) {
-				System.err.println("Warning: Layer reference '" + component.getLayer() +
-						"' not found for component '" + component.getName() + "'");
+			if (component == null) {
 				continue;
 			}
 
 			double x = component.getX();
 			double y = component.getY();
 
-			x += parentComponent.getX();
-			y += parentComponent.getY();
+			InterfaceComponent parentComponent = componentMap.get(component.getLayer());
+			if (component.getLayer() != null && !component.getLayer().isEmpty()) {
+				if (parentComponent == null) {
+					System.err.println("Warning: Layer reference '" + component.getLayer() +
+							"' not found for component '" + component.getName() + "'");
+				} else {
+					x += parentComponent.getX();
+					y += parentComponent.getY();
+					System.out.println(component.getName() + " " + x + " " + y);
+				}
+			}
 
 			RenderableJagComponent componentToRender = new RenderableJagComponent(component, x, y);
 
@@ -114,220 +120,17 @@ public class ComponentRenderer {
 				componentPane = addComponentModel(componentToRender);
 			}
 			else if ("text".equals(component.getType())) {
-				try {
-					FontHelper font = assetLoader.getFontManager().getFont(component.getFont());
-					if (font == null) {
-						System.err.println("Error: Font not found: " + component.getFont());
-						return;
-					}
-
-					componentPane = new Pane();
-					componentPane.setLayoutX(x);
-					componentPane.setLayoutY(y);
-					componentPane.setViewOrder(-1.0);
-					componentPane.setId("text_" + component.getName());
-
-					double containerWidth = component.getWidth();
-					String originalText = component.getText();
-					if (originalText == null) originalText = "";
-
-					double maxTextWidth = 0;
-					double totalHeight = 0;
-					ArrayList<String> lines = new ArrayList<>();
-					int lineHeight = font.height;
-
-					TextRenderInfo renderInfo = new TextRenderInfo(font, originalText, component.isShadowed(), component.isCenter(), containerWidth);
-
-					String remainingText = originalText;
-					while (remainingText.length() > 0 || lines.isEmpty()) {
-						int newlineIndex = remainingText.indexOf("\\n");
-						String line;
-
-						if (newlineIndex != -1) {
-							line = remainingText.substring(0, newlineIndex);
-							remainingText = remainingText.substring(newlineIndex + 2);
-						} else {
-							line = remainingText;
-							remainingText = "";
-						}
-
-						if (originalText.isEmpty() && lines.isEmpty() && line.isEmpty()) {
-							lines.add("");
-						} else if (!originalText.isEmpty() || !line.isEmpty()){
-							lines.add(line);
-						}
-
-						int currentLineWidth = font.getTextWidth(line);
-						maxTextWidth = Math.max(maxTextWidth, currentLineWidth);
-						totalHeight += lineHeight;
-
-						if (originalText.isEmpty() && !lines.isEmpty()) break;
-
-						if (newlineIndex == -1 && remainingText.isEmpty()) break;
-
-					}
-					if (lines.isEmpty()) {
-						lines.add("");
-						totalHeight = lineHeight;
-					}
-
-					double canvasWidth = component.isCenter() ? containerWidth : maxTextWidth;
-					double canvasHeight = totalHeight;
-
-					if (canvasWidth <= 0) canvasWidth = 1;
-					if (canvasHeight <= 0) canvasHeight = lineHeight;
-
-					Canvas textCanvas = new Canvas(canvasWidth + 5, canvasHeight + 5);
-					GraphicsContext gc = textCanvas.getGraphicsContext2D();
-
-					Color color = Color.BLACK;
-					try {
-						String colorStr = component.getColour();
-						if (colorStr != null && colorStr.length() >= 2) {
-							if (colorStr.startsWith("0x")) {
-								colorStr = colorStr.substring(2);
-							}
-							if (colorStr.matches("[0-9a-fA-F]{6}")) {
-								int rgb = Integer.parseInt(colorStr, 16);
-								color = Color.rgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
-							} else {
-								System.err.println("Warning: Invalid color format for " + component.getName() + ": " + component.getColour());
-							}
-						}
-					} catch (NumberFormatException nfe) {
-						System.err.println("Error parsing color for " + component.getName() + ": " + component.getColour() + " - " + nfe.getMessage());
-					} catch (Exception e) {
-						System.err.println("Error processing color for " + component.getName() + ": " + e.getMessage());
-					}
-					double currentLineY = 0;
-					for (String line : lines) {
-						double baselineY = currentLineY + lineHeight;
-
-						int lineStartX = 0;
-						if (component.isCenter()) {
-							int currentLineWidth = font.getTextWidth(line);
-							lineStartX = ((int)containerWidth - currentLineWidth) / 2 + 1;
-							if(lineStartX < 0) lineStartX = 0;
-						}
-
-						renderInfo.lines.add(line);
-						renderInfo.lineStartXPositions.add(lineStartX);
-						renderInfo.lineYPositions.add(baselineY);
-
-						font.drawTextWithTags(
-								gc,
-								line,
-								lineStartX,
-								baselineY,
-								color,
-								component.isShadowed()
-						);
-						currentLineY += lineHeight;
-					}
-
-					textRenderInfoMap.put(component.getName(), renderInfo);
-					componentPane.getChildren().add(textCanvas);
-
-					componentPane.setPrefWidth(canvasWidth);
-					componentPane.setPrefHeight(canvasHeight);
-
-				} catch (Exception e) {
-					System.err.println("Error creating text component " + component.getName() + ": " + e.getMessage());
-					e.printStackTrace();
-				}
-			} else if ("inv".equals(component.getType())) {
+				componentPane = addComponentText(componentToRender);
+			}
+			else if ("inv".equals(component.getType())) {
 				componentPane = addComponentInv(componentToRender);
-			} else if ("invtext".equals(component.getType())) {
+			}
+			else if ("invtext".equals(component.getType())) {
 				componentPane = addComponentInvText(componentToRender);
 			}
+
 			if (componentPane != null && component.getScroll() > 0) {
-				Pane scrollbarPane = new Pane();
-				scrollbarPane.setLayoutX(x + component.getWidth());
-				scrollbarPane.setLayoutY(y);
-				scrollbarPane.setPrefWidth(16);
-				scrollbarPane.setPrefHeight(component.getHeight());
-				scrollbarPane.setId("scrollbar_" + component.getName());
-
-				ImageView topButton = new ImageView(assetLoader.getSpriteManager().getSprite("scrollbar", 0));
-				topButton.setFitWidth(16);
-				topButton.setFitHeight(16);
-
-				ImageView bottomButton = new ImageView(assetLoader.getSpriteManager().getSprite("scrollbar", 1));
-				bottomButton.setFitWidth(16);
-				bottomButton.setFitHeight(16);
-				bottomButton.setLayoutY(component.getHeight() - 16);
-
-				int gripSize = (component.getHeight() - 32) * component.getHeight() / component.getScroll();
-				if (gripSize < 8) gripSize = 8;
-
-				int gripY = (component.getHeight() - gripSize - 32) /
-						(Math.max(1, component.getScroll() - component.getHeight()));
-
-				Rectangle track = new Rectangle(16, component.getHeight() - 32);
-				track.setLayoutY(16);
-				track.setFill(Color.web("0x23201b"));
-
-				Rectangle grip = new Rectangle(16, gripSize);
-				grip.setLayoutY(0);
-				grip.setFill(Color.web("0x4d4233"));
-
-				Line highlight1 = new Line(0, 0, 0, gripSize);
-				highlight1.setStroke(Color.web("0x766654"));
-				highlight1.setLayoutX(0);
-				highlight1.setLayoutY(0);
-
-				Line highlight2 = new Line(0, 0, 0, gripSize);
-				highlight2.setStroke(Color.web("0x766654"));
-				highlight2.setLayoutX(1);
-				highlight2.setLayoutY(0);
-
-				Line highlight3 = new Line(0, 0, 16, 0);
-				highlight3.setStroke(Color.web("0x766654"));
-				highlight3.setLayoutY(0);
-
-				Line highlight4 = new Line(0, 0, 16, 0);
-				highlight4.setStroke(Color.web("0x766654"));
-				highlight4.setLayoutY(1);
-
-				Line lowlight1 = new Line(0, 0, 0, gripSize);
-				lowlight1.setStroke(Color.web("0x332d25"));
-				lowlight1.setLayoutX(15);
-				lowlight1.setLayoutY(0);
-
-				Line lowlight2 = new Line(0, 0, 0, gripSize - 1);
-				lowlight2.setStroke(Color.web("0x332d25"));
-				lowlight2.setLayoutX(14);
-				lowlight2.setLayoutY(1);
-
-				Line lowlight3 = new Line(0, 0, 16, 0);
-				lowlight3.setStroke(Color.web("0x332d25"));
-				lowlight3.setLayoutY(gripSize - 1);
-
-				Line lowlight4 = new Line(0, 0, 15, 0);
-				lowlight4.setStroke(Color.web("0x332d25"));
-				lowlight4.setLayoutX(1);
-				lowlight4.setLayoutY(gripSize - 2);
-
-				Pane gripPane = new Pane();
-				gripPane.getChildren().addAll(
-						grip,
-						highlight1, highlight2, highlight3, highlight4,
-						lowlight1, lowlight2, lowlight3, lowlight4
-				);
-				gripPane.setLayoutY(16 + gripY);
-
-				scrollbarPane.getChildren().addAll(track, topButton, bottomButton, gripPane);
-
-				if (component.getLayer() != null && !component.getLayer().isEmpty()) {
-					Pane parentPane = componentPaneMap.get(component.getLayer());
-					if (parentPane != null) {
-						parentPane.getChildren().add(scrollbarPane);
-					} else {
-						root.getChildren().add(scrollbarPane);
-					}
-				} else {
-					applicationState.getInterfaceRenderArea().getChildren().add(scrollbarPane);
-				}
+				addComponentScrollBar(componentToRender);
 			}
 
 			if (componentPane != null) {
@@ -356,7 +159,7 @@ public class ComponentRenderer {
 					}
 
 					if (component.getType().equals("text") && component.getOverColour() != null && textCanvas != null) {
-						LostCityInterfaceEditor.TextRenderInfo renderInfo = textRenderInfoMap.get(component.getName());
+						TextRenderInfo renderInfo = textRenderInfoMap.get(component.getName());
 						if (renderInfo != null) {
 							GraphicsContext hoverGc = textCanvas.getGraphicsContext2D();
 							hoverGc.clearRect(0, 0, textCanvas.getWidth(), textCanvas.getHeight());
@@ -377,14 +180,14 @@ public class ComponentRenderer {
 								System.err.println("Error parsing hover color: " + e.getMessage());
 							}
 
-							for (int i = 0; i < renderInfo.lines.size(); i++) {
-								renderInfo.font.drawTextWithTags(
+							for (int i = 0; i < renderInfo.getLines().size(); i++) {
+								renderInfo.getFont().drawTextWithTags(
 										hoverGc,
-										renderInfo.lines.get(i),
-										renderInfo.lineStartXPositions.get(i),
-										renderInfo.lineYPositions.get(i),
+										renderInfo.getLines().get(i),
+										renderInfo.getLineStartXPositions().get(i),
+										renderInfo.getLineYPositions().get(i),
 										hoverColor,
-										renderInfo.shadowed
+										renderInfo.isShadowed()
 								);
 							}
 						}
@@ -408,7 +211,7 @@ public class ComponentRenderer {
 					}
 
 					if (component.getType().equals("text") && component.getOverColour() != null && textCanvas != null) {
-						LostCityInterfaceEditor.TextRenderInfo renderInfo = textRenderInfoMap.get(component.getName());
+						TextRenderInfo renderInfo = textRenderInfoMap.get(component.getName());
 						if (renderInfo != null) {
 							GraphicsContext exitGc = textCanvas.getGraphicsContext2D();
 							exitGc.clearRect(0, 0, textCanvas.getWidth(), textCanvas.getHeight());
@@ -429,14 +232,14 @@ public class ComponentRenderer {
 								System.err.println("Error parsing original color: " + e.getMessage());
 							}
 
-							for (int i = 0; i < renderInfo.lines.size(); i++) {
-								renderInfo.font.drawTextWithTags(
+							for (int i = 0; i < renderInfo.getLines().size(); i++) {
+								renderInfo.getFont().drawTextWithTags(
 										exitGc,
-										renderInfo.lines.get(i),
-										renderInfo.lineStartXPositions.get(i),
-										renderInfo.lineYPositions.get(i),
+										renderInfo.getLines().get(i),
+										renderInfo.getLineStartXPositions().get(i),
+										renderInfo.getLineYPositions().get(i),
 										originalColor,
-										renderInfo.shadowed
+										renderInfo.isShadowed()
 								);
 							}
 						}
@@ -460,12 +263,15 @@ public class ComponentRenderer {
 						}
 						parentPane.getChildren().add(componentPane);
 					} else {
-						applicationState.getInterfaceRenderArea().getChildren().add(componentPane);
+						ApplicationState.getApplicationState().getInterfaceRenderArea().getChildren().add(componentPane);
 						System.out.println("Warning: Parent layer pane not found for " + component.getName() + ", adding to root");
 					}
 				} else {
-					applicationState.getInterfaceRenderArea().getChildren().add(componentPane);
+					System.out.println("Child Name: " + component.getName() + " Component Pane Name: " + componentPane);
+					ApplicationState.getApplicationState().getInterfaceRenderArea().getChildren().add(componentPane);
+
 				}
+
 				if (component.getLayer() != null && !component.getLayer().isEmpty()) {
 					boolean parentVisible = layerVisibilityMap.getOrDefault(component.getLayer(), true);
 					componentPane.setVisible(parentVisible);
@@ -477,8 +283,225 @@ public class ComponentRenderer {
 			Pane pane = componentPaneMap.get(componentName);
 			InterfaceComponent component = componentMap.get(componentName);
 			if (pane != null && component != null) {
-				updateMouseTransparency(pane, component);
+				// TODO: Don't forget this either, brain
+				//				updateMouseTransparency(pane, component);
 			}
+		}
+	}
+
+	private Pane addComponentText(RenderableJagComponent componentToRender) {
+
+		Pane componentPane = new Pane();
+		componentPane.setLayoutX(componentToRender.relativeX);
+		componentPane.setLayoutY(componentToRender.relativeY);
+		componentPane.setViewOrder(-1.0);
+		componentPane.setId("text_" + componentToRender.component.getName());
+
+		FontHelper font = assetLoader.getFontManager().getFont(componentToRender.component.getFont());
+		if (font == null) {
+			System.err.println("Error: Font not found: " + componentToRender.component.getFont());
+			return componentPane;
+		}
+
+		double containerWidth = componentToRender.component.getWidth();
+		String originalText = componentToRender.component.getText();
+
+		if (originalText == null) {
+			originalText = "";
+		}
+
+		double maxTextWidth = 0;
+		double totalHeight = 0;
+		ArrayList<String> lines = new ArrayList<>();
+		int lineHeight = font.height;
+
+		TextRenderInfo renderInfo = new TextRenderInfo(font, originalText, componentToRender.component.isShadowed(), componentToRender.component.isCenter(), containerWidth);
+
+		String remainingText = originalText;
+		while (remainingText.length() > 0 || lines.isEmpty()) {
+			int newlineIndex = remainingText.indexOf("\\n");
+			String line;
+
+			if (newlineIndex != -1) {
+				line = remainingText.substring(0, newlineIndex);
+				remainingText = remainingText.substring(newlineIndex + 2);
+			} else {
+				line = remainingText;
+				remainingText = "";
+			}
+
+			if (originalText.isEmpty() && lines.isEmpty() && line.isEmpty()) {
+				lines.add("");
+			} else if (!originalText.isEmpty() || !line.isEmpty()){
+				lines.add(line);
+			}
+
+			int currentLineWidth = font.getTextWidth(line);
+			maxTextWidth = Math.max(maxTextWidth, currentLineWidth);
+			totalHeight += lineHeight;
+
+			if (originalText.isEmpty() && !lines.isEmpty()) break;
+
+			if (newlineIndex == -1 && remainingText.isEmpty()) break;
+
+		}
+		if (lines.isEmpty()) {
+			lines.add("");
+			totalHeight = lineHeight;
+		}
+
+		double canvasWidth = componentToRender.component.isCenter() ? containerWidth : maxTextWidth;
+		double canvasHeight = totalHeight;
+
+		if (canvasWidth <= 0) canvasWidth = 1;
+		if (canvasHeight <= 0) canvasHeight = lineHeight;
+
+		Canvas textCanvas = new Canvas(canvasWidth + 5, canvasHeight + 5);
+		GraphicsContext gc = textCanvas.getGraphicsContext2D();
+
+		Color color = Color.BLACK;
+		try {
+			String colorStr = componentToRender.component.getColour();
+			if (colorStr != null && colorStr.length() >= 2) {
+				if (colorStr.startsWith("0x")) {
+					colorStr = colorStr.substring(2);
+				}
+				if (colorStr.matches("[0-9a-fA-F]{6}")) {
+					int rgb = Integer.parseInt(colorStr, 16);
+					color = Color.rgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+				} else {
+					System.err.println("Warning: Invalid color format for " + componentToRender.component.getName() + ": " + componentToRender.component.getColour());
+				}
+			}
+		} catch (NumberFormatException nfe) {
+			System.err.println("Error parsing color for " + componentToRender.component.getName() + ": " + componentToRender.component.getColour() + " - " + nfe.getMessage());
+		} catch (Exception e) {
+			System.err.println("Error processing color for " + componentToRender.component.getName() + ": " + e.getMessage());
+		}
+		double currentLineY = 0;
+		for (String line : lines) {
+			double baselineY = currentLineY + lineHeight;
+
+			int lineStartX = 0;
+			if (componentToRender.component.isCenter()) {
+				int currentLineWidth = font.getTextWidth(line);
+				lineStartX = ((int)containerWidth - currentLineWidth) / 2 + 1;
+				if(lineStartX < 0) lineStartX = 0;
+			}
+
+			renderInfo.addLines(line);
+			renderInfo.addLineStartXPosition(lineStartX);
+			renderInfo.addLineYPosition(baselineY);
+
+			font.drawTextWithTags(
+					gc,
+					line,
+					lineStartX,
+					baselineY,
+					color,
+					componentToRender.component.isShadowed()
+			);
+			currentLineY += lineHeight;
+		}
+
+		textRenderInfoMap.put(componentToRender.component.getName(), renderInfo);
+		componentPane.getChildren().add(textCanvas);
+
+		componentPane.setPrefWidth(canvasWidth);
+		componentPane.setPrefHeight(canvasHeight);
+
+		return componentPane;
+
+	}
+
+	private void addComponentScrollBar(RenderableJagComponent componentToRender) {
+		Pane scrollbarPane = new Pane();
+		scrollbarPane.setLayoutX(componentToRender.relativeX + componentToRender.component.getWidth());
+		scrollbarPane.setLayoutY(componentToRender.relativeY);
+		scrollbarPane.setPrefWidth(16);
+		scrollbarPane.setPrefHeight(componentToRender.component.getHeight());
+		scrollbarPane.setId("scrollbar_" + componentToRender.component.getName());
+
+		ImageView topButton = new ImageView(assetLoader.getSpriteManager().getSprite("scrollbar", 0));
+		topButton.setFitWidth(16);
+		topButton.setFitHeight(16);
+
+		ImageView bottomButton = new ImageView(assetLoader.getSpriteManager().getSprite("scrollbar", 1));
+		bottomButton.setFitWidth(16);
+		bottomButton.setFitHeight(16);
+		bottomButton.setLayoutY(componentToRender.component.getHeight() - 16);
+
+		int gripSize = (componentToRender.component.getHeight() - 32) * componentToRender.component.getHeight() / componentToRender.component.getScroll();
+		if (gripSize < 8) gripSize = 8;
+
+		int gripY = (componentToRender.component.getHeight() - gripSize - 32) /
+				(Math.max(1, componentToRender.component.getScroll() - componentToRender.component.getHeight()));
+
+		Rectangle track = new Rectangle(16, componentToRender.component.getHeight() - 32);
+		track.setLayoutY(16);
+		track.setFill(Color.web("0x23201b"));
+
+		Rectangle grip = new Rectangle(16, gripSize);
+		grip.setLayoutY(0);
+		grip.setFill(Color.web("0x4d4233"));
+
+		Line highlight1 = new Line(0, 0, 0, gripSize);
+		highlight1.setStroke(Color.web("0x766654"));
+		highlight1.setLayoutX(0);
+		highlight1.setLayoutY(0);
+
+		Line highlight2 = new Line(0, 0, 0, gripSize);
+		highlight2.setStroke(Color.web("0x766654"));
+		highlight2.setLayoutX(1);
+		highlight2.setLayoutY(0);
+
+		Line highlight3 = new Line(0, 0, 16, 0);
+		highlight3.setStroke(Color.web("0x766654"));
+		highlight3.setLayoutY(0);
+
+		Line highlight4 = new Line(0, 0, 16, 0);
+		highlight4.setStroke(Color.web("0x766654"));
+		highlight4.setLayoutY(1);
+
+		Line lowlight1 = new Line(0, 0, 0, gripSize);
+		lowlight1.setStroke(Color.web("0x332d25"));
+		lowlight1.setLayoutX(15);
+		lowlight1.setLayoutY(0);
+
+		Line lowlight2 = new Line(0, 0, 0, gripSize - 1);
+		lowlight2.setStroke(Color.web("0x332d25"));
+		lowlight2.setLayoutX(14);
+		lowlight2.setLayoutY(1);
+
+		Line lowlight3 = new Line(0, 0, 16, 0);
+		lowlight3.setStroke(Color.web("0x332d25"));
+		lowlight3.setLayoutY(gripSize - 1);
+
+		Line lowlight4 = new Line(0, 0, 15, 0);
+		lowlight4.setStroke(Color.web("0x332d25"));
+		lowlight4.setLayoutX(1);
+		lowlight4.setLayoutY(gripSize - 2);
+
+		Pane gripPane = new Pane();
+		gripPane.getChildren().addAll(
+				grip,
+				highlight1, highlight2, highlight3, highlight4,
+				lowlight1, lowlight2, lowlight3, lowlight4
+		);
+		gripPane.setLayoutY(16 + gripY);
+
+		scrollbarPane.getChildren().addAll(track, topButton, bottomButton, gripPane);
+
+		if (componentToRender.component.getLayer() != null && !componentToRender.component.getLayer().isEmpty()) {
+			Pane parentPane = componentPaneMap.get(componentToRender.component.getLayer());
+			if (parentPane != null) {
+				parentPane.getChildren().add(scrollbarPane);
+			} else {
+				// TODO: root? in this economy?
+				//root.getChildren().add(scrollbarPane);
+			}
+		} else {
+			ApplicationState.getApplicationState().getInterfaceRenderArea().getChildren().add(scrollbarPane);
 		}
 	}
 
@@ -648,42 +671,42 @@ public class ComponentRenderer {
 			clickCaptureRect.setFill(Color.TRANSPARENT);
 			componentPane.getChildren().add(clickCaptureRect);
 
-			EventHandler<MouseEvent> clickHandler = event -> {
+//			EventHandler<MouseEvent> clickHandler = event -> {
+//
+//				if (activeComponentName != null && !componentName.equals(activeComponentName)) {
+//					Pane prevActivePane = componentPaneMap.get(activeComponentName);
+//					InterfaceComponent prevActiveComponent = componentMap.get(activeComponentName);
+//
+//					if (prevActivePane != null && prevActiveComponent != null &&
+//							prevActiveComponent.getActiveGraphicName() != null) {
+//						Node firstChild = prevActivePane.getChildren().get(0);
+//						if (firstChild instanceof ImageView) {
+//							ImageView prevImageView = (ImageView) firstChild;
+//							if (prevActiveComponent.getGraphicName() != null && !prevActiveComponent.getGraphicName().isEmpty()) {
+//								prevImageView.setImage(assetLoader.getSpriteManager().getSprite(prevActiveComponent.getGraphicName(),
+//										prevActiveComponent.getGraphicIndex()));
+//							} else {
+//								prevImageView.setImage(null);
+//							}
+//						}
+//					}
+//				}
+//
+//				activeComponentName = componentName;
+//
+//				WritableImage activeImage = assetLoader.getSpriteManager().getSprite(activeGraphicName, activeGraphicIndex);
+//				if (activeImage != null) {
+//					imageView.setImage(activeImage);
+//				} else {
+//					System.err.println("Failed to get active sprite for: " + activeGraphicName);
+//				}
+//
+//				event.consume();
+//			};
+//			originalClickHandlers.put(componentName, clickHandler);
 
-				if (activeComponentName != null && !componentName.equals(activeComponentName)) {
-					Pane prevActivePane = componentPaneMap.get(activeComponentName);
-					InterfaceComponent prevActiveComponent = componentMap.get(activeComponentName);
-
-					if (prevActivePane != null && prevActiveComponent != null &&
-							prevActiveComponent.getActiveGraphicName() != null) {
-						Node firstChild = prevActivePane.getChildren().get(0);
-						if (firstChild instanceof ImageView) {
-							ImageView prevImageView = (ImageView) firstChild;
-							if (prevActiveComponent.getGraphicName() != null && !prevActiveComponent.getGraphicName().isEmpty()) {
-								prevImageView.setImage(assetLoader.getSpriteManager().getSprite(prevActiveComponent.getGraphicName(),
-										prevActiveComponent.getGraphicIndex()));
-							} else {
-								prevImageView.setImage(null);
-							}
-						}
-					}
-				}
-
-				activeComponentName = componentName;
-
-				WritableImage activeImage = assetLoader.getSpriteManager().getSprite(activeGraphicName, activeGraphicIndex);
-				if (activeImage != null) {
-					imageView.setImage(activeImage);
-				} else {
-					System.err.println("Failed to get active sprite for: " + activeGraphicName);
-				}
-
-				event.consume();
-			};
-			originalClickHandlers.put(componentName, clickHandler);
-
-			imageView.setOnMouseClicked(clickHandler);
-			clickCaptureRect.setOnMouseClicked(clickHandler);
+//			imageView.setOnMouseClicked(clickHandler);
+//			clickCaptureRect.setOnMouseClicked(clickHandler);
 
 			componentPane.setPickOnBounds(true);
 		}
@@ -712,6 +735,98 @@ public class ComponentRenderer {
 		return componentPane;
 	}
 
+	private void toggleLayerVisibility(
+			String layerName,
+			boolean visible,
+			Map<String, InterfaceComponent> componentMap,
+			Map<String, Pane> componentPaneMap,
+			Map<String, Boolean> layerVisibilityMap,
+			Map<String, List<String>> layerChildrenMap) {
+
+		layerVisibilityMap.put(layerName, visible);
+
+		Pane layerPane = componentPaneMap.get(layerName);
+		if (layerPane != null) {
+			layerPane.setVisible(visible);
+
+			layerPane.setMouseTransparent(false);
+
+			if (visible) {
+				if (!originalViewOrderMap.containsKey(layerName)) {
+					originalViewOrderMap.put(layerName, layerPane.getViewOrder());
+				}
+
+				layerPane.setViewOrder(-10.0);
+				layerPane.toFront();
+			} else {
+				Double originalViewOrder = originalViewOrderMap.getOrDefault(layerName, 0.0);
+				layerPane.setViewOrder(originalViewOrder);
+			}
+		}
+
+		List<String> children = layerChildrenMap.get(layerName);
+		if (children != null) {
+			for (String childName : children) {
+				InterfaceComponent childComponent = componentMap.get(childName);
+				Pane childPane = componentPaneMap.get(childName);
+
+				if (childComponent != null && childPane != null) {
+					childPane.setVisible(visible);
+					if ("layer".equals(childComponent.getType())) {
+						toggleLayerVisibility(childName, visible, componentMap, componentPaneMap,
+								layerVisibilityMap, layerChildrenMap);
+					} else {
+						childPane.setVisible(visible);
+						if (visible) {
+							if (!originalViewOrderMap.containsKey(childName)) {
+								originalViewOrderMap.put(childName, childPane.getViewOrder());
+							}
+							childPane.setViewOrder(-9.0);
+							if (childPane.getParent() instanceof Pane) {
+								Pane parent = (Pane) childPane.getParent();
+								parent.getChildren().remove(childPane);
+								parent.getChildren().add(childPane);
+							}
+						} else {
+							Double originalViewOrder = originalViewOrderMap.getOrDefault(childName, 0.0);
+							childPane.setViewOrder(originalViewOrder);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	private void showTooltip(String text) {
+		if (text == null || text.isEmpty()) return;
+		tooltipCanvas.getGraphicsContext2D().clearRect(0, 0, tooltipCanvas.getWidth(), tooltipCanvas.getHeight());
+		String fontName = "b12_full";
+		FontHelper font = assetLoader.getFontManager().getFont(fontName);
+
+		if (font == null) {
+			fontName = "b12";
+			font = assetLoader.getFontManager().getFont(fontName);
+		}
+		double width = Math.max(100,  font.getTextWidth(text) + 10);
+		if (width > tooltipCanvas.getWidth()) {
+			tooltipCanvas.setWidth(width);
+		}
+		assetLoader.getFontManager().drawTaggableText(
+				tooltipCanvas.getGraphicsContext2D(),
+				fontName,
+				text,
+				12.0, 26.0,
+				16777215,
+				true
+		);
+		tooltipPane.setVisible(true);
+	}
+
+	private void hideTooltip() {
+		tooltipPane.setVisible(false);
+		tooltipCanvas.getGraphicsContext2D().clearRect(0, 0, tooltipCanvas.getWidth(), tooltipCanvas.getHeight());
+	}
+
 	private class RenderableJagComponent {
 		InterfaceComponent component;
 		double relativeX;
@@ -719,8 +834,8 @@ public class ComponentRenderer {
 
 		public RenderableJagComponent(InterfaceComponent component, double xOffset, double yOffset) {
 			this.component = component;
-			this.relativeX = component.getX() + xOffset;
-			this.relativeY = component.getY() + yOffset;
+			this.relativeX = xOffset;
+			this.relativeY = yOffset;
 		}
 	}
 }
