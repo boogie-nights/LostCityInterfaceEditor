@@ -32,6 +32,9 @@ public class ScreenBuilder implements Builder<Region> {
 		// Keep this for all the fun sections and whatnot
 		// menuBar.setStyle("-fx-border-color: red; -fx-border-width: 1;");
 
+		// Let's move this menu stuff to this set up
+		// https://www.pragmaticcoding.ca/javafx/Mvci-Introduction
+		// that means the loading and saving will move down to a service.
 		Menu fileMenu = new Menu("File");
 		MenuItem openMenuItem = new MenuItem("Open Interface");
 		// TODO: Handle this not like this.
