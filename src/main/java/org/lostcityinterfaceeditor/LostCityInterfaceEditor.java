@@ -19,7 +19,7 @@ import org.lostcityinterfaceeditor.loaders.AssetLoader;
 import org.lostcityinterfaceeditor.models.ApplicationState;
 import org.lostcityinterfaceeditor.models.InterfaceComponent;
 import org.lostcityinterfaceeditor.service.UpdatePackFilesService;
-import org.lostcityinterfaceeditor.service.componentrenderer.ComponentRenderer;
+import org.lostcityinterfaceeditor.ui.jagcomponent.JagComponentBuilder;
 import org.lostcityinterfaceeditor.ui.ComponentPropertiesBuilder;
 import org.lostcityinterfaceeditor.ui.InterfaceComponentsBuilder;
 import org.lostcityinterfaceeditor.ui.RuneScapeUiBuilder;
@@ -48,7 +48,7 @@ public class LostCityInterfaceEditor extends Application {
     private ScrollPane propertiesScrollPane;
     private ApplicationState applicationState;
 
-    private ComponentRenderer componentRenderer;
+    private JagComponentBuilder jagComponentBuilder;
 
 
     private UpdatePackFilesService updatePackFilesService;
@@ -81,7 +81,7 @@ public class LostCityInterfaceEditor extends Application {
             InterfaceComponentsBuilder interfaceComponentsBuilder = new InterfaceComponentsBuilder(assetLoader, applicationState);
             ComponentPropertiesBuilder componentPropertiesBuilder = new ComponentPropertiesBuilder(assetLoader, applicationState);
 
-            componentRenderer = new ComponentRenderer(assetLoader, interfaceComponents);
+            jagComponentBuilder = new JagComponentBuilder(assetLoader, interfaceComponents);
 
             Region sceneRoot = new ScreenBuilder(this, runeScapeUiBuilder, interfaceComponentsBuilder, componentPropertiesBuilder).build();
             Scene scene = new Scene(sceneRoot);
@@ -847,7 +847,7 @@ public class LostCityInterfaceEditor extends Application {
     }
 
     private void renderInterfaceComponents() {
-        componentRenderer.renderComponents();
+        jagComponentBuilder.renderComponents();
     }
 
     private void updateMouseTransparency(Pane pane, InterfaceComponent component) {

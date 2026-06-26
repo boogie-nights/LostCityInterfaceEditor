@@ -34,6 +34,7 @@ public class ScreenBuilder implements Builder<Region> {
 
 		Menu fileMenu = new Menu("File");
 		MenuItem openMenuItem = new MenuItem("Open Interface");
+		// TODO: Handle this not like this.
 		openMenuItem.setOnAction(e -> lostCityInterfaceEditor.loadInterfaceFile());
 		fileMenu.getItems().add(openMenuItem);
 

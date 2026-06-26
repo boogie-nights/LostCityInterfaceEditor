@@ -1,4 +1,4 @@
-package org.lostcityinterfaceeditor.service.componentrenderer;
+package org.lostcityinterfaceeditor.ui.jagcomponent;
 
 import javafx.event.EventHandler;
 import javafx.scene.canvas.Canvas;
@@ -18,10 +18,11 @@ import org.lostcityinterfaceeditor.helpers.StringUtils;
 import org.lostcityinterfaceeditor.loaders.AssetLoader;
 import org.lostcityinterfaceeditor.models.ApplicationState;
 import org.lostcityinterfaceeditor.models.InterfaceComponent;
+import org.lostcityinterfaceeditor.service.componentrenderer.TextRenderInfo;
 
 import java.util.*;
 
-public class ComponentRenderer {
+public class JagComponentBuilder {
 
 	private final AssetLoader assetLoader;
 
@@ -37,7 +38,7 @@ public class ComponentRenderer {
 	private Map<String, EventHandler<MouseEvent>> originalClickHandlers = new HashMap<>();
 
 
-	public ComponentRenderer(AssetLoader assetLoader, List<InterfaceComponent> interfaceComponents) {
+	public JagComponentBuilder(AssetLoader assetLoader, List<InterfaceComponent> interfaceComponents) {
 		this.assetLoader = assetLoader;
 		this.interfaceComponents = interfaceComponents;
 	}
